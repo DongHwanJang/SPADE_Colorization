@@ -40,26 +40,26 @@ class SPADEResnetBlock(nn.Module):
 
         # define normalization layers
         spade_config_str = opt.norm_G.replace('spectral', '')
-        self.norm_0 = SPADE(spade_config_str, fin, opt.semantic_nc)
+        self.norm_0 = SPADE(spade_config_str, fin, opt.s)
         self.norm_1 = SPADE(spade_config_str, fmiddle, opt.semantic_nc)
         if self.learned_shortcut:
             self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def forward(self, x, seg):
-        x_s = self.shortcut(x, seg)
+    def forward(self, x, seg, conf_map):
+        x_s = self.shortcut(x, seg, conf_map)
 
-        dx = self.conv_0(self.actvn(self.norm_0(x, seg)))
-        dx = self.conv_1(self.actvn(self.norm_1(dx, seg)))
+        dx = self.conv_0(self.actvn(self.norm_0(x, seg, conf_map)))
+        dx = self.conv_1(self.actvn(self.norm_1(dx, seg, conf_map)))
 
         out = x_s + dx
 
         return out
 
-    def shortcut(self, x, seg):
+    def shortcut(self, x, seg, conf_map):
         if self.learned_shortcut:
-            x_s = self.conv_s(self.norm_s(x, seg))
+            x_s = self.conv_s(self.norm_s(x, seg, conf_map))
         else:
             x_s = x
         return x_s
@@ -185,12 +185,16 @@ class VGGFeatureExtractor(nn.Module):
             self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
 
         self.conv_concate = nn.Conv1d(256*4, 256, kernel_size=1)
-        self.resblock_0 = ResnetBlock(256,)
-        self.resblock_1 = ResnetBlock(256, )
-        self.resblock_2 = ResnetBlock(256, )
+        self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d)
+
+        self.resblock_value_0 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.resblock_value_1 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d)
 
 
-    def forward(self, x):
+    def forward(self, x, isValue=False):
         vgg_feature=self.vgg(x, corr_feature=True)
         vgg_feature[0]=self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
         vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
@@ -200,67 +204,76 @@ class VGGFeatureExtractor(nn.Module):
         x=torch.stack(vgg_feature, dim=1)
         x=self.conv_concate(x)
 
+        if not isValue:
+            x = self.resblock_0(x)
+            x = self.resblock_1(x)
+            x = self.resblock_2(x) # [B, 256, H/4, W/4]
+        else:
+            x = self.resblock_value_0(x)
+            x = self.resblock_value_1(x)
+            x = self.resblock_value_2(x)  # [B, 256, H/4, W/4]
 
-
+        return x
 
     def actvn(self, x):
         return F.leaky_relu(x, 2e-1)
 
+class NonLocalBlock(nn.Module):
+    def __init__(self, in_dim):
+        super(NonLocalBlock, self).__init__()
+
+        self.register_buffer('tau', torch.FloatTensor([0.01]))
+        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels=2, out_channels=in_dim, kernel_size=1)
+        self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
+
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, key, query, value, unit_mult=True):
+        # B: mini batches, C: channels, W: width, H: height
+        B, C, H, W = key.shape
+        _, C_value, _, _ = value.shape
+        proj_query = self.query_conv(query).view(B, -1, W * H).permute(0, 2, 1)  # B X CX(N) -> B x N x C
+        proj_key = self.key_conv(key).view(B, -1, W * H)  # B X C x (*W*H)
+        if unit_mult:
+            proj_query = proj_query-torch.mean(proj_query, dim=2, keepdim=True)
+            proj_query = proj_query/torch.norm(proj_query, dim=2, keepdim=True)
+            proj_key = proj_key - torch.mean(proj_key, dim=1, keepdim=True)
+            proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
+
+        corr_map = torch.bmm(proj_query, proj_key)  # transpose check
+        conf_map = torch.max(corr_map, dim=2)
+        attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
+        proj_value = self.value_conv(value).view(B, -1, W * H)  # B X 2(gamma&beta) X N
+
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 2 x N_query
+        out = out.view(B, C_value, H, W)
+
+        out = self.gamma * out + value
+
+        return corr_map, conf_map, out
 
 class CorrSubnet(nn.Module):
     def __init__(self, opt):
         super().__init__()
 
         # create vgg Model
-        self.vgg = VGG19().cuda()
+        self.vgg_feature_extracter = VGGFeatureExtractor(opt)
 
-        # create conv layers
-        self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.conv_2_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
-        self.conv_3_2_0 = nn.Conv2d(256, 128, kernel_size=3, padding=1)
-        self.conv_3_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.conv_4_2_0 = nn.Conv2d(512, 256, kernel_size=3, padding=1)
-        self.conv_4_2_1 = nn.ConvTranspose2d(256, 256,
-                                                    kernel_size=3, stride=2,
-                                                    padding=1, output_padding=1)
-        self.conv_5_2_0 = nn.ConvTranspose2d(512, 256,
-                                                    kernel_size=3, stride=2,
-                                                    padding=1, output_padding=1)
-        self.conv_5_2_1 = nn.ConvTranspose2d(256, 256,
-                                                    kernel_size=3, stride=2,
-                                                    padding=1, output_padding=1)
-
-        # apply spectral norm if specified
-        if 'spectral' in opt.norm_G:
-            self.conv_2_2_0 = spectral_norm(self.conv_2_2_0)
-            self.conv_2_2_1 = spectral_norm(self.conv_2_2_1)
-            self.conv_3_2_0 = spectral_norm(self.conv_3_2_0)
-            self.conv_3_2_1 = spectral_norm(self.conv_3_2_1)
-            self.conv_4_2_0 = spectral_norm(self.conv_4_2_0)
-            self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
-            self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
-            self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
-
-
-
+        self.non_local_blk = NonLocalBlock(256)
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def forward(self, tgt, seg):
+    def forward(self, tgt, ref):
+        tgt = self.vgg_feature_extracter(tgt)
+        ref = self.vgg_feature_extracter(ref)
 
-        dx = self.conv_0(self.actvn(self.norm_0(x, seg)))
-        dx = self.conv_1(self.actvn(self.norm_1(dx, seg)))
+        ref_value = self.vgg_feature_extracter(ref, isValue=True)
 
-        out = x_s + dx
+        corr_map, conf_map, out = self.non_local_blk(ref, tgt, ref_value)
 
-        return out
-
-    def shortcut(self, x, seg):
-        if self.learned_shortcut:
-            x_s = self.conv_s(self.norm_s(x, seg))
-        else:
-            x_s = x
-        return x_s
+        return corr_map, conf_map, out
 
     def actvn(self, x):
         return F.leaky_relu(x, 2e-1)

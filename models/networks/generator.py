@@ -38,7 +38,7 @@ class SPADEGenerator(BaseNetwork):
             # downsampled segmentation map instead of random z
             self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)
 
-        self.corr_subnet = CorrSubnet()
+        self.corr_subnet = CorrSubnet(opt)
 
         self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)
 
@@ -79,7 +79,8 @@ class SPADEGenerator(BaseNetwork):
     def forward(self, input, z=None):
         # Assume that input = (tgt, ref)
 
-        seg = input
+        tgt, ref = input
+        corr_map, conf_map, tgt_value = self.corr_subnet(tgt, ref)
 
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
@@ -90,32 +91,32 @@ class SPADEGenerator(BaseNetwork):
             x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
         else:
             # we downsample segmap and run convolution
-            x = F.interpolate(seg, size=(self.sh, self.sw))
+            x = F.interpolate(tgt_value, size=(self.sh, self.sw))
             x = self.fc(x)
 
-        x = self.head_0(x, seg)
+        x = self.head_0(x, tgt_value, conf_map)
 
         x = self.up(x)
-        x = self.G_middle_0(x, seg)
+        x = self.G_middle_0(x, tgt_value, conf_map)
 
         if self.opt.num_upsampling_layers == 'more' or \
            self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
 
-        x = self.G_middle_1(x, seg)
+        x = self.G_middle_1(x, tgt_value, conf_map)
 
         x = self.up(x)
-        x = self.up_0(x, seg)
+        x = self.up_0(x, tgt_value, conf_map)
         x = self.up(x)
-        x = self.up_1(x, seg)
+        x = self.up_1(x, tgt_value, conf_map)
         x = self.up(x)
-        x = self.up_2(x, seg)
+        x = self.up_2(x, tgt_value, conf_map)
         x = self.up(x)
-        x = self.up_3(x, seg)
+        x = self.up_3(x, tgt_value, conf_map)
 
         if self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
-            x = self.up_4(x, seg)
+            x = self.up_4(x, tgt_value, conf_map)
 
         x = self.conv_img(F.leaky_relu(x, 2e-1))
         x = F.tanh(x)
