@@ -156,9 +156,12 @@ class BaseOptions():
 
         # Set semantic_nc based on the option.
         # This will be convenient in many places
-        opt.semantic_nc = opt.label_nc + \
-            (1 if opt.contain_dontcare_label else 0) + \
-            (0 if opt.no_instance else 1)
+        # opt.semantic_nc = opt.label_nc + \
+        #     (1 if opt.contain_dontcare_label else 0) + \
+        #     (0 if opt.no_instance else 1)
+
+        # the number of channels in tgt_value = 256
+        opt.semantic_nc = 256
 
         # set gpu ids
         str_ids = opt.gpu_ids.split(',')
