@@ -225,7 +225,7 @@ class NonLocalBlock(nn.Module):
         self.register_buffer('tau', torch.FloatTensor([0.01]))
         self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels=2, out_channels=in_dim, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
 
         self.softmax = nn.Softmax(dim=-1)
@@ -245,9 +245,9 @@ class NonLocalBlock(nn.Module):
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check
         conf_map = torch.max(corr_map, dim=2)
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
-        proj_value = self.value_conv(value).view(B, -1, W * H)  # B X 2(gamma&beta) X N
+        proj_value = self.value_conv(value).view(B, -1, W * H)  # B X 256 X N
 
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 2 x N_query
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
         out = out.view(B, C_value, H, W)
 
         out = self.gamma * out + value
