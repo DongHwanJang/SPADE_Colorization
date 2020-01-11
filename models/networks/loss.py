@@ -100,9 +100,12 @@ class GANLoss(nn.Module):
 
 # Perceptual loss that uses a pretrained VGG network
 class VGGLoss(nn.Module):
-    def __init__(self, gpu_ids):
+    def __init__(self, gpu_ids, vgg=None):
         super(VGGLoss, self).__init__()
-        self.vgg = VGG19().cuda()
+        if vgg is not None:
+            self.vgg = vgg
+        else:
+            self.vgg = VGG19().cuda()
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 

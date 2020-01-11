@@ -30,7 +30,7 @@ class Pix2PixModel(torch.nn.Module):
                 opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
             self.criterionFeat = torch.nn.L1Loss()
             if not opt.no_vgg_loss:
-                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
+                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
 

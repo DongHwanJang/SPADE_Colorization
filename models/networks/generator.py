@@ -10,6 +10,7 @@ from models.networks.base_network import BaseNetwork
 from models.networks.normalization import get_nonspade_norm_layer
 from models.networks.architecture import ResnetBlock as ResnetBlock
 from models.networks.architecture import SPADEResnetBlock as SPADEResnetBlock
+from models.networks.architecture import CorrSubnet as CorrSubnet
 
 
 class SPADEGenerator(BaseNetwork):
@@ -36,6 +37,8 @@ class SPADEGenerator(BaseNetwork):
             # Otherwise, we make the network deterministic by starting with
             # downsampled segmentation map instead of random z
             self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)
+
+        self.corr_subnet = CorrSubnet()
 
         self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)
 
@@ -74,6 +77,8 @@ class SPADEGenerator(BaseNetwork):
         return sw, sh
 
     def forward(self, input, z=None):
+        # Assume that input = (tgt, ref)
+
         seg = input
 
         if self.opt.use_vae:

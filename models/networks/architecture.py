@@ -99,6 +99,14 @@ class VGG19(torch.nn.Module):
         self.slice3 = torch.nn.Sequential()
         self.slice4 = torch.nn.Sequential()
         self.slice5 = torch.nn.Sequential()
+
+        self.slice1_corr = torch.nn.Sequential()
+        self.slice2_corr = torch.nn.Sequential()
+        self.slice3_corr = torch.nn.Sequential()
+        self.slice4_corr = torch.nn.Sequential()
+        self.slice5_corr = torch.nn.Sequential()
+
+
         for x in range(2):
             self.slice1.add_module(str(x), vgg_pretrained_features[x])
         for x in range(2, 7):
@@ -109,15 +117,150 @@ class VGG19(torch.nn.Module):
             self.slice4.add_module(str(x), vgg_pretrained_features[x])
         for x in range(21, 30):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
+
+        for x in range(9):
+            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(9, 14):
+            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(14, 23):
+            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(23, 32):
+            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
+
         if not requires_grad:
             for param in self.parameters():
                 param.requires_grad = False
 
-    def forward(self, X):
-        h_relu1 = self.slice1(X)
-        h_relu2 = self.slice2(h_relu1)
-        h_relu3 = self.slice3(h_relu2)
-        h_relu4 = self.slice4(h_relu3)
-        h_relu5 = self.slice5(h_relu4)
-        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+    def forward(self, X, corr_feature=False):
+        if corr_feature:
+            h_relu1 = self.slice1(X)
+            h_relu2 = self.slice2(h_relu1)
+            h_relu3 = self.slice3(h_relu2)
+            h_relu4 = self.slice4(h_relu3)
+            h_relu5 = self.slice5(h_relu4)
+            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+
+        else:
+            h_relu1 = self.slice1_corr(X)
+            h_relu2 = self.slice2_corr(h_relu1)
+            h_relu3 = self.slice3_corr(h_relu2)
+            h_relu4 = self.slice4_corr(h_relu3)
+
+            out = [h_relu1, h_relu2, h_relu3, h_relu4]
+
         return out
+
+class VGGFeatureExtractor(nn.Module):
+    def __init__(self, opt):
+        super().__init__()
+
+        # create vgg Model
+        self.vgg = VGG19().cuda()
+
+        # create conv layers
+        self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.conv_2_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
+        self.conv_3_2_0 = nn.Conv2d(256, 128, kernel_size=3, padding=1)
+        self.conv_3_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv_4_2_0 = nn.Conv2d(512, 256, kernel_size=3, padding=1)
+        self.conv_4_2_1 = nn.ConvTranspose2d(256, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+        self.conv_5_2_0 = nn.ConvTranspose2d(512, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+        self.conv_5_2_1 = nn.ConvTranspose2d(256, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+
+        # apply spectral norm if specified
+        if 'spectral' in opt.norm_G:
+            self.conv_2_2_0 = spectral_norm(self.conv_2_2_0)
+            self.conv_2_2_1 = spectral_norm(self.conv_2_2_1)
+            self.conv_3_2_0 = spectral_norm(self.conv_3_2_0)
+            self.conv_3_2_1 = spectral_norm(self.conv_3_2_1)
+            self.conv_4_2_0 = spectral_norm(self.conv_4_2_0)
+            self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
+            self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
+            self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
+
+        self.conv_concate = nn.Conv1d(256*4, 256, kernel_size=1)
+        self.resblock_0 = ResnetBlock(256,)
+        self.resblock_1 = ResnetBlock(256, )
+        self.resblock_2 = ResnetBlock(256, )
+
+
+    def forward(self, x):
+        vgg_feature=self.vgg(x, corr_feature=True)
+        vgg_feature[0]=self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
+        vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
+        vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
+        vgg_feature[3] = self.conv_5_2_1(self.actvn(self.conv_5_2_0(vgg_feature[3])))
+
+        x=torch.stack(vgg_feature, dim=1)
+        x=self.conv_concate(x)
+
+
+
+
+    def actvn(self, x):
+        return F.leaky_relu(x, 2e-1)
+
+
+class CorrSubnet(nn.Module):
+    def __init__(self, opt):
+        super().__init__()
+
+        # create vgg Model
+        self.vgg = VGG19().cuda()
+
+        # create conv layers
+        self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.conv_2_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
+        self.conv_3_2_0 = nn.Conv2d(256, 128, kernel_size=3, padding=1)
+        self.conv_3_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv_4_2_0 = nn.Conv2d(512, 256, kernel_size=3, padding=1)
+        self.conv_4_2_1 = nn.ConvTranspose2d(256, 256,
+                                                    kernel_size=3, stride=2,
+                                                    padding=1, output_padding=1)
+        self.conv_5_2_0 = nn.ConvTranspose2d(512, 256,
+                                                    kernel_size=3, stride=2,
+                                                    padding=1, output_padding=1)
+        self.conv_5_2_1 = nn.ConvTranspose2d(256, 256,
+                                                    kernel_size=3, stride=2,
+                                                    padding=1, output_padding=1)
+
+        # apply spectral norm if specified
+        if 'spectral' in opt.norm_G:
+            self.conv_2_2_0 = spectral_norm(self.conv_2_2_0)
+            self.conv_2_2_1 = spectral_norm(self.conv_2_2_1)
+            self.conv_3_2_0 = spectral_norm(self.conv_3_2_0)
+            self.conv_3_2_1 = spectral_norm(self.conv_3_2_1)
+            self.conv_4_2_0 = spectral_norm(self.conv_4_2_0)
+            self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
+            self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
+            self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
+
+
+
+
+    # note the resnet block with SPADE also takes in |seg|,
+    # the semantic segmentation map as input
+    def forward(self, tgt, seg):
+
+        dx = self.conv_0(self.actvn(self.norm_0(x, seg)))
+        dx = self.conv_1(self.actvn(self.norm_1(dx, seg)))
+
+        out = x_s + dx
+
+        return out
+
+    def shortcut(self, x, seg):
+        if self.learned_shortcut:
+            x_s = self.conv_s(self.norm_s(x, seg))
+        else:
+            x_s = x
+        return x_s
+
+    def actvn(self, x):
+        return F.leaky_relu(x, 2e-1)
