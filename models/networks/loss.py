@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.networks.architecture import VGG19
+from util.WLSFilter import wls_filter
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
@@ -121,3 +122,45 @@ class VGGLoss(nn.Module):
 class KLDLoss(nn.Module):
     def forward(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+class SmoothnessLoss(nn.Module):
+    def get_near_by_coords(self, h, w, height, width):
+        coords_candidates = [
+            (h-1, w-1),
+            (h-1, w),
+            (h-1, w+1),
+            (h, w-1),
+            (h, w+1),
+            (h+1, w-1),
+            (h+1, w),
+            (h+1, w+1)
+        ]
+
+        coords = []
+
+        for (y, x) in coords_candidates:
+            if x < 0 or y < 0:
+                continue
+            if x >= width or y >= height:
+                continue
+            coords.append((y, x))
+
+        return coords
+
+    def forward(self, input):
+        height = input.shape[1]
+        width = input.shape[2]
+        error = 0
+
+        for c in range(2):
+            wls_weight = wls_filter(input[c])
+            for h in range(height):
+                for w in range(width):
+                    coords = self.get_near_by_coords(h, w, height, width)
+                    sum = 0
+                    for (y, x) in coords:
+                        sum += wls_weight[y, x] * input[c, y, x]
+                    diff = input[c, h,  w] - sum
+                    error += diff
+
+        return error/(height*width)
