@@ -82,6 +82,7 @@ class GANLoss(nn.Module):
             else:
                 return input.mean()
 
+    # simple wrapper around self.loss() method that handles batches
     def __call__(self, input, target_is_real, for_discriminator=True):
         # computing loss is a bit complicated because |input| may not be
         # a tensor, but list of tensors in case of multiscale discriminator
