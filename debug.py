@@ -34,14 +34,9 @@ iteration = 100
 target_path = "/DATA1/hksong/imagenet/n04428191/n04428191_39506.JPEG"
 reference_path ="/DATA1/hksong/imagenet/n04428191/n04428191_39564.JPEG"
 
-target_LAB = PIL.Image(target_path)
-target_LAB.mode = "LAB"
+target_LAB = PIL.Image(target_path).convert("LAB")
 
-reference_LAB = color.rgb2lab(io.imread(reference_path))
-
-
-print(type(target_LAB))
-print(type(reference_LAB))
+reference_LAB = PIL.Image(reference_path).convert("LAB")
 
 data = {
     "target_LAB":target_LAB,

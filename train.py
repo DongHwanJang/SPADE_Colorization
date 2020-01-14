@@ -34,6 +34,11 @@ for epoch in iter_counter.training_epochs():
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
 
+        # to run reconstruction loss, set reference_LAB = target_LAB
+        if i % opt.reconstruction_period == 0:
+            data_i["reference_LAB"] = data_i["target_LAB"]
+            data_i["is_reconstructing"] = True
+
         # Training
         # train generator
         if i % opt.D_steps_per_G == 0:

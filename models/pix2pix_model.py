@@ -34,21 +34,23 @@ class Pix2PixModel(torch.nn.Module):
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
-                self.SmoothnessLoss = networks.SmoothnessLoss()
+                self.smoothnessLoss = networks.SmoothnessLoss()
+            if opt.use_reconstruction_loss:
+                self.reconstructionLoss = networks.ReconstructionLoss()
 
     # parses LAB into L and AB.
     # This shouldn't make new copies. It should also handle batch cases
     def parse_LAB(self, image_LAB):
         if len(image_LAB.size()) == 4:
-            image_L = image_LAB[:0:]
-            image_A = image_LAB[:1:]
-            image_B = image_LAB[:2:]
+            image_L = image_LAB[:,0,:]
+            image_A = image_LAB[:,1,:]
+            image_B = image_LAB[:,2,:]
             image_AB = torch.stack([image_A, image_B], 1)
 
         elif len(image_LAB.size()) == 3:
-            image_L = image_LAB[0:]
-            image_A = image_LAB[1:]
-            image_B = image_LAB[2:]
+            image_L = image_LAB[0]
+            image_A = image_LAB[1]
+            image_B = image_LAB[2]
             image_AB = torch.stack([image_A, image_B], 0)
 
         else:
@@ -67,7 +69,7 @@ class Pix2PixModel(torch.nn.Module):
 
         if mode == 'generator':
             g_loss, generated = self.compute_generator_loss(
-                target_L, target_LAB, reference_LAB)
+                target_L, target_LAB, reference_LAB, is_reconstructing=data["is_reconstructing"])
             return g_loss, generated
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(
@@ -153,7 +155,7 @@ class Pix2PixModel(torch.nn.Module):
 
         return data['label'], data['image']
 
-    def compute_generator_loss(self, target_L, target_LAB, reference_LAB):
+    def compute_generator_loss(self, target_L, target_LAB, reference_LAB, is_reconstructing=False):
         G_losses = {}
 
 
@@ -188,7 +190,10 @@ class Pix2PixModel(torch.nn.Module):
                 * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.SmoothnessLoss(fake_LAB)
+            G_losses["smoothness"] = self.smoothnessLoss(fake_LAB)
+
+        if is_reconstructing:
+            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
 
         return G_losses, fake_LAB
 

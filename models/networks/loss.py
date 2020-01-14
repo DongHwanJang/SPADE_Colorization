@@ -165,3 +165,10 @@ class SmoothnessLoss(nn.Module):
                     error += diff
 
         return error/(height*width)
+
+class ReconstructionLoss(nn.Module):
+    def __init__(self):
+        self.loss = nn.SmoothL1Loss()
+
+    def forward(self, fake_LAB, reference_LAB):
+        return self.loss(fake_LAB, reference_LAB)
