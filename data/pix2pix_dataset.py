@@ -5,7 +5,8 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
-import util.util as util
+# import util.util as util
+from util.pil_loader import pil_loader
 import os
 import numpy
 
@@ -37,7 +38,8 @@ class Pix2pixDataset(BaseDataset):
         return filename1_without_ext == filename2_without_ext
 
     def __getitem__(self, index):
-        params = get_params(self.opt, label.size)
+        # params = get_params(self.opt, label.size)
+        params = get_params(self.opt, (256, 256))  # FIXME: what is label.size?
 
         # input image (real images)
         target_path = self.target_paths[index]
@@ -46,10 +48,8 @@ class Pix2pixDataset(BaseDataset):
         similarity = numpy.random.choice(range(self.top_n_reference), 1)
         reference_path = self.target_ref_dict[target_path][similarity]
 
-        target_LAB = Image.open(target_path).convert('LAB')
-
-
-        reference_LAB = Image.open(reference_path).convert('LAB')
+        target_LAB = pil_loader(target_path)
+        reference_LAB = pil_loader(reference_path)
 
         transform_image = get_transform(self.opt, params)
 
