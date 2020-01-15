@@ -42,7 +42,7 @@ class BaseOptions():
 
         # for setting inputs
         parser.add_argument('--dataroot', type=str, default='./datasets/cityscapes/')
-        parser.add_argument('--dataset_mode', type=str, default='coco')
+        parser.add_argument('--dataset_mode', type=str, default='imagenet')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data argumentation')
         parser.add_argument('--nThreads', default=0, type=int, help='# threads for loading data')
@@ -55,6 +55,8 @@ class BaseOptions():
         parser.add_argument('--display_winsize', type=int, default=400, help='display window size')
 
         # for generator
+        parser.add_argument('--weight_root', type=str, default='./', help='declare the path for saving VGG weight')  # FIXME
+        parser.add_argument('--ref_type', type=str, default='l', help='select type of input for reference image (l | ab | lab)')
         parser.add_argument('--netG', type=str, default='spade', help='selects model to use for netG (pix2pixhd | spade)')
         parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in first conv layer')
         parser.add_argument('--init_type', type=str, default='xavier', help='network initialization [normal|xavier|kaiming|orthogonal]')
