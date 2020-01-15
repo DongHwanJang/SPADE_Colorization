@@ -10,6 +10,9 @@ import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer
+import PIL
+from skimage import io, color
+from skimage.transform import downscale_local_mean
 
 # parse options
 opt = TrainOptions().parse()
@@ -17,35 +20,42 @@ opt = TrainOptions().parse()
 # print options to help debugging
 print(' '.join(sys.argv))
 
-# load the dataset
-dataloader = data.create_dataloader(opt)
-
 # create trainer for our model
 trainer = Pix2PixTrainer(opt)
 
 # create tool for counting iterations
-iter_counter = IterationCounter(opt, len(dataloader))
+iter_counter = IterationCounter(opt, 1)
 
 # create tool for visualization
 visualizer = Visualizer(opt)
 
+iteration = 100
+
+target_path = "/DATA1/hksong/imagenet/n04428191/n04428191_39506.JPEG"
+reference_path ="/DATA1/hksong/imagenet/n04428191/n04428191_39564.JPEG"
+
+target_LAB = PIL.Image(target_path).convert("LAB")
+
+reference_LAB = PIL.Image(reference_path).convert("LAB")
+
+data = {
+    "target_LAB":target_LAB,
+    "reference_LAB":reference_LAB
+}
+
 for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
-    for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
-        iter_counter.record_one_iteration()
+    for i in range(iteration):
 
-        # to run reconstruction loss, set reference_LAB = target_LAB
-        if i % opt.reconstruction_period == 0:
-            data_i["reference_LAB"] = data_i["target_LAB"]
-            data_i["is_reconstructing"] = True
+        iter_counter.record_one_iteration()
 
         # Training
         # train generator
         if i % opt.D_steps_per_G == 0:
-            trainer.run_generator_one_step(data_i)
+            trainer.run_generator_one_step(data)
 
         # train discriminator
-        trainer.run_discriminator_one_step(data_i)
+        trainer.run_discriminator_one_step(data)
 
         # Visualizations
         if iter_counter.needs_printing():
@@ -55,9 +65,9 @@ for epoch in iter_counter.training_epochs():
             visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
-            visuals = OrderedDict([('input_label', data_i['label']),
+            visuals = OrderedDict([('input_label', data['target_LAB'][0]),
                                    ('synthesized_image', trainer.get_latest_generated()),
-                                   ('real_image', data_i['image'])])
+                                   ('real_image', data['reference_LAB'])])
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():

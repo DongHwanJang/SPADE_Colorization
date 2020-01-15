@@ -55,8 +55,12 @@ class MultiscaleDiscriminator(BaseNetwork):
         get_intermediate_features = not self.opt.no_ganFeat_loss
         for name, D in self.named_children():
             out = D(input)
+
+            # if opt.no_ganFeat_loss, D outputs a single feature map. Else, D outputs a list of feature map.
+            # This conditional is just to unify the return type of the discriminator
             if not get_intermediate_features:
                 out = [out]
+
             result.append(out)
             input = self.downsample(input)
 
