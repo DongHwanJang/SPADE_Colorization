@@ -150,6 +150,144 @@ class VGG19(torch.nn.Module):
 
         return out
 
+
+class Scale(nn.Module):
+    def __init__(self, channels):
+        super(Scale, self).__init__()
+        self.weight = nn.parameter(torch.Tensor(channels))
+        self.bias = nn.parameter(torch.Tensor(channels))
+        self.channels = channels
+
+    def __repr__(self):
+        return 'Scale(channels = %d)' % self.channels
+
+    def forward(self, x):
+        nB = x.size(0)
+        nC = x.size(1)
+        nH = x.size(2)
+        nW = x.size(3)
+        x = x * self.weight.view(1, nC, 1, 1).expand(nB, nC, nH, nW) + \
+            self.bias.view(1, nC, 1, 1).expand(nB, nC, nH, nW)
+        return x
+
+
+# Ported from caffemodel. The original model is made from the author of 'image colorization'.
+# Luminance-only feature extraction is available for this model.
+# weight can get from the link 'https://www.dropbox.com/s/smfuhqremoxc0ro/gray_vgg19_bn.pth?dl=0'
+class Vgg19BN(nn.Module):
+    def __init__(self, requires_grad=False):
+        super(Vgg19BN, self).__init__()
+
+        self.layers = nn.ModuleList([
+            nn.BatchNorm2d(3, eps=1e-05, momentum=0.9, affine=False),
+            Scale(channels=3),
+
+            nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(64, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(64, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(128, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(128, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
+            nn.Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
+            nn.Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
+            nn.ReLU(inplace=True)
+        ])
+
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, x, corr_feat=False):
+        features = []
+        # pretend that it is used for correlation loss
+        if corr_feat:
+            for idx in range(5):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(5, 12):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(12, 19):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(19, 32):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(32, 45):
+                x = self.layers[idx](x)
+            features.append(x)
+
+        else:
+            for idx in range(15):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(15, 22):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(22, 35):
+                x = self.layers[idx](x)
+            features.append(x)
+
+            for idx in range(35, 48):
+                x = self.layers[idx](x)
+            features.append(x)
+
+        return features
+
+
 class VGGFeatureExtractor(nn.Module):
     def __init__(self, opt):
         super().__init__()
