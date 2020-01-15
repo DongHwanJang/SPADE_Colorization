@@ -278,31 +278,31 @@ class Colorize(object):
         return color_image
 
 
-def find_pretrained_weight(opt):
+def find_pretrained_weight(weight_root, opt=None):
 
     url_lib = {
         'vgg19_bn_gray': "https://www.dropbox.com/s/smfuhqremoxc0ro/gray_vgg19_bn.pth",
         'vgg19_bn_lab': "",
         'vgg19_bn_ab': "",
     }
+    mkdir(weight_root)
 
-    mkdir(opt.weight_root)
-    if os.path.exists(opt.weight_root):
+    if opt is None or opt.ref_type == 'l':
+        url = url_lib['vgg19_bn_gray']
+        weight_name = weight_root + 'vgg19_bn_gray.pth'
+    elif opt.ref_type == 'ab':
+        url = url_lib['vgg19_bn_lab']
+        weight_name = weight_root + 'vgg19_bn_lab.pth'
+    elif opt.ref_type == 'lab':
+        url = url_lib['vgg19_bn_ab']
+        weight_name = weight_root + 'vgg19_bn_ab.pth'
+    else:
+        print("Please designate proper type for reference image")
+        raise ValueError
+
+    if os.path.exists(weight_name):
         pass
     else:
-        if opt.ref_type == 'l':
-            url = url_lib['vgg19_bn_gray']
-            weight_name = opt.weight_root + 'vgg19_bn_gray.pth'
-        elif opt.ref_type == 'ab':
-            url = url_lib['vgg19_bn_lab']
-            weight_name = opt.weight_root + 'vgg19_bn_lab.pth'
-        elif opt.ref_type == 'lab':
-            url = url_lib['vgg19_bn_ab']
-            weight_name = opt.weight_root + 'vgg19_bn_ab.pth'
-        else:
-            print("Please designate proper type for reference image")
-            raise ValueError
-
         print("vgg weight is downloading as ... {:s}".format(weight_name))
         subprocess.call(' '.join(['wget -o ', weight_name, url]), shell=True)
 

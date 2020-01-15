@@ -294,7 +294,7 @@ class VGGFeatureExtractor(nn.Module):
         # create vgg Model
         if opt.ref_type == 'l' or opt.ref_type == 'ab' or opt.ref_type == 'lab':
             self.vgg = Vgg19BN().cuda().eval()
-            self.vgg.load_state_dict(util.find_pretrained_weight(opt))
+            self.vgg.load_state_dict(util.find_pretrained_weight(opt.weight_root, opt=opt))
         else:
             self.vgg = VGG19().cuda()
 
