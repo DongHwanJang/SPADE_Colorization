@@ -91,21 +91,21 @@ class ResnetBlock(nn.Module):
 
 
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
-class VGG19(torch.nn.Module):
+class VGG19(nn.Module):
     def __init__(self, requires_grad=False):
         super().__init__()
         vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
-        self.slice1 = torch.nn.Sequential()
-        self.slice2 = torch.nn.Sequential()
-        self.slice3 = torch.nn.Sequential()
-        self.slice4 = torch.nn.Sequential()
-        self.slice5 = torch.nn.Sequential()
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
 
-        self.slice1_corr = torch.nn.Sequential()
-        self.slice2_corr = torch.nn.Sequential()
-        self.slice3_corr = torch.nn.Sequential()
-        self.slice4_corr = torch.nn.Sequential()
-        self.slice5_corr = torch.nn.Sequential()
+        self.slice1_corr = nn.Sequential()
+        self.slice2_corr = nn.Sequential()
+        self.slice3_corr = nn.Sequential()
+        self.slice4_corr = nn.Sequential()
+        self.slice5_corr = nn.Sequential()
 
 
         for x in range(2):
@@ -134,20 +134,21 @@ class VGG19(torch.nn.Module):
 
     def forward(self, X, corr_feature=False):
         if corr_feature:
-            h_relu1 = self.slice1(X)
-            h_relu2 = self.slice2(h_relu1)
-            h_relu3 = self.slice3(h_relu2)
-            h_relu4 = self.slice4(h_relu3)
-            h_relu5 = self.slice5(h_relu4)
-            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
-
-        else:
             h_relu1 = self.slice1_corr(X)
             h_relu2 = self.slice2_corr(h_relu1)
             h_relu3 = self.slice3_corr(h_relu2)
             h_relu4 = self.slice4_corr(h_relu3)
 
             out = [h_relu1, h_relu2, h_relu3, h_relu4]
+
+        else:
+            h_relu1 = self.slice1(X)
+            h_relu2 = self.slice2(h_relu1)
+            h_relu3 = self.slice3(h_relu2)
+            h_relu4 = self.slice4(h_relu3)
+            h_relu5 = self.slice5(h_relu4)
+
+            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
 
         return out
 
@@ -249,37 +250,37 @@ class Vgg19BN(nn.Module):
         features = []
         # pretend that it is used for correlation loss
         if corr_feat:
+            for idx in range(15):
+                x = self.layers[idx](x)
+            features.append(x)  # relu2_2
+            for idx in range(15, 22):
+                x = self.layers[idx](x)
+            features.append(x)  # relu3_2
+            for idx in range(22, 35):
+                x = self.layers[idx](x)
+            features.append(x)  # relu4_2
+            for idx in range(35, 48):
+                x = self.layers[idx](x)
+            features.append(x)  # relu5_2
+
+        else:
             for idx in range(5):
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(5, 12):  # relu2_2
+            for idx in range(5, 12):
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(12, 19):  # relu3_2
+            for idx in range(12, 19):
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(19, 32):  # relu4_2
+            for idx in range(19, 32):
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(32, 45):  # relu5_2
-                x = self.layers[idx](x)
-            features.append(x)
-
-        else:
-            for idx in range(15):
-                x = self.layers[idx](x)
-            features.append(x)
-            for idx in range(15, 22):
-                x = self.layers[idx](x)
-            features.append(x)
-            for idx in range(22, 35):
-                x = self.layers[idx](x)
-            features.append(x)
-            for idx in range(35, 48):
+            for idx in range(32, 45):
                 x = self.layers[idx](x)
             features.append(x)
 
