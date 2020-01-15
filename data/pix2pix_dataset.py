@@ -20,7 +20,7 @@ class Pix2pixDataset(BaseDataset):
     def initialize(self, opt):
         self.opt = opt
         self.target_ref_dict = self.get_paths(opt)
-        self.target_paths = self.target_ref_dict.keys()[:opt.max_dataset_size]
+        self.target_paths = list(self.target_ref_dict.keys())[:opt.max_dataset_size]
         self.dataset_size = len(self.target_paths)
         self.top_n_reference = opt.top_n_reference
 

@@ -27,20 +27,21 @@ class ImagenetDataset(Pix2pixDataset):
 
     def get_paths(self, opt):
         # root = opt.dataroot  # TODO: unify dataroot to one directory
-        root = "./pair_txt/"
+        root = "./pair_img/"
         phase = 'val' if opt.phase == 'test' else opt.phase
 
         pair_list = os.path.join(root, '%s.txt' % phase)
         pair_data = dict()
-        with open(pair_list, mode='w') as f:
+
+        with open(pair_list, mode='r') as f:
             data = [x.strip().split(" ") for x in f.readlines()]
 
-            for line in data:
-                ref_top_n = dict()
-                for ref_score, (ref_name, ref_similarity) in enumerate(zip(line[1::2], line[2::2])):
-                    ref_top_n[ref_score] = [ref_name]
-                    # TODO: use similarity (cosine distance) score for test result
-                    # ref_top_n[ref_score] = [ref_name, ref_similarity]
-                pair_data[line[0]] = ref_top_n
+        for line in data:
+            ref_top_n = dict()
+            for ref_score, (ref_name, ref_similarity) in enumerate(zip(line[1::2], line[2::2])):
+                ref_top_n[ref_score] = [ref_name]
+                # TODO: use similarity (cosine distance) score for test result
+                # ref_top_n[ref_score] = [ref_name, ref_similarity]
+            pair_data[line[0]] = ref_top_n
 
         return pair_data

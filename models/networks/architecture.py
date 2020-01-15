@@ -156,8 +156,8 @@ class VGG19(nn.Module):
 class Scale(nn.Module):
     def __init__(self, channels):
         super(Scale, self).__init__()
-        self.weight = nn.parameter(torch.Tensor(channels))
-        self.bias = nn.parameter(torch.Tensor(channels))
+        self.weight = nn.parameter.Parameter(torch.Tensor(channels))
+        self.bias = nn.parameter.Parameter(torch.Tensor(channels))
         self.channels = channels
 
     def __repr__(self):
@@ -289,12 +289,12 @@ class Vgg19BN(nn.Module):
 
 class VGGFeatureExtractor(nn.Module):
     def __init__(self, opt):
-        super(VGGFeatureExtractor).__init__()
+        super(VGGFeatureExtractor, self).__init__()
 
         # create vgg Model
         if opt.ref_type == 'l' or opt.ref_type == 'ab' or opt.ref_type == 'lab':
             self.vgg = Vgg19BN().cuda().eval()
-            self.vgg.load_state_dict(util.find_pretrained_weight(opt.weight_root, opt=opt))
+            self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         else:
             self.vgg = VGG19().cuda()
 
@@ -397,7 +397,7 @@ class NonLocalBlock(nn.Module):
 
 class CorrSubnet(nn.Module):
     def __init__(self, opt):
-        super(CorrSubnet).__init__()
+        super(CorrSubnet, self).__init__()
 
         # create vgg Model
         self.vgg_feature_extracter = VGGFeatureExtractor(opt)
