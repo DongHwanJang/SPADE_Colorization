@@ -17,6 +17,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from PIL import Image
 from util.pil_loader import pil_loader
 
 model_names = sorted(name for name in models.__dict__
