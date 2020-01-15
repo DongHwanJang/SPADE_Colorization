@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torchvision
 import torch.nn.utils.spectral_norm as spectral_norm
 from models.networks.normalization import SPADE
+import util.util as util
 
 
 # ResNet block that uses SPADE.
@@ -244,7 +245,7 @@ class Vgg19BN(nn.Module):
             for param in self.parameters():
                 param.requires_grad = False
 
-    def forward(self, x, corr_feat=False):
+    def forward(self, x, corr_feat=True):
         features = []
         # pretend that it is used for correlation loss
         if corr_feat:
@@ -252,19 +253,19 @@ class Vgg19BN(nn.Module):
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(5, 12):
+            for idx in range(5, 12):  # relu2_2
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(12, 19):
+            for idx in range(12, 19):  # relu3_2
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(19, 32):
+            for idx in range(19, 32):  # relu4_2
                 x = self.layers[idx](x)
             features.append(x)
 
-            for idx in range(32, 45):
+            for idx in range(32, 45):  # relu5_2
                 x = self.layers[idx](x)
             features.append(x)
 
@@ -272,15 +273,12 @@ class Vgg19BN(nn.Module):
             for idx in range(15):
                 x = self.layers[idx](x)
             features.append(x)
-
             for idx in range(15, 22):
                 x = self.layers[idx](x)
             features.append(x)
-
             for idx in range(22, 35):
                 x = self.layers[idx](x)
             features.append(x)
-
             for idx in range(35, 48):
                 x = self.layers[idx](x)
             features.append(x)
@@ -293,7 +291,11 @@ class VGGFeatureExtractor(nn.Module):
         super().__init__()
 
         # create vgg Model
-        self.vgg = VGG19().cuda()
+        if opt.ref_type == 'l' or opt.ref_type == 'ab' or opt.ref_type == 'lab':
+            self.vgg = Vgg19BN().cuda().eval()
+            self.vgg.load_state_dict(util.find_pretrained_weight(opt))
+        else:
+            self.vgg = VGG19().cuda()
 
         # create conv layers
         self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
@@ -333,19 +335,19 @@ class VGGFeatureExtractor(nn.Module):
 
 
     def forward(self, x, isValue=False):
-        vgg_feature=self.vgg(x, corr_feature=True)
-        vgg_feature[0]=self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
+        vgg_feature = self.vgg(x, corr_feature=True)
+        vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
         vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
         vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
         vgg_feature[3] = self.conv_5_2_1(self.actvn(self.conv_5_2_0(vgg_feature[3])))
 
-        x=torch.stack(vgg_feature, dim=1)
-        x=self.conv_concate(x)
+        x = torch.stack(vgg_feature, dim=1)
+        x = self.conv_concate(x)
 
         if not isValue:
             x = self.resblock_0(x)
             x = self.resblock_1(x)
-            x = self.resblock_2(x) # [B, 256, H/4, W/4]
+            x = self.resblock_2(x)  # [B, 256, H/4, W/4]
         else:
             x = self.resblock_value_0(x)
             x = self.resblock_value_1(x)
