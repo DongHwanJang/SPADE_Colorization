@@ -92,7 +92,7 @@ class ResnetBlock(nn.Module):
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
 class VGG19(torch.nn.Module):
     def __init__(self, requires_grad=False):
-        super().__init__()
+        super(VGG19).__init__()
         vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
@@ -152,7 +152,7 @@ class VGG19(torch.nn.Module):
 
 class VGGFeatureExtractor(nn.Module):
     def __init__(self, opt):
-        super().__init__()
+        super(VGGFeatureExtractor).__init__()
 
         # create vgg Model
         self.vgg = VGG19().cuda()
@@ -256,7 +256,7 @@ class NonLocalBlock(nn.Module):
 
 class CorrSubnet(nn.Module):
     def __init__(self, opt):
-        super().__init__()
+        super(CorrSubnet).__init__()
 
         # create vgg Model
         self.vgg_feature_extracter = VGGFeatureExtractor(opt)
