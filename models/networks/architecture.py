@@ -50,7 +50,6 @@ class SPADEResnetBlock(nn.Module):
     # the semantic segmentation map as input
     def forward(self, x, seg, conf_map):
         x_s = self.shortcut(x, seg, conf_map)
-
         dx = self.conv_0(self.actvn(self.norm_0(x, seg, conf_map)))
         dx = self.conv_1(self.actvn(self.norm_1(dx, seg, conf_map)))
 
@@ -391,7 +390,8 @@ class NonLocalBlock(nn.Module):
             proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
 
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check
-        conf_map = torch.max(corr_map, dim=2)
+        conf_map = torch.max(corr_map, dim=2)[0]
+        conf_map = conf_map.view(-1, H, W).unsqueeze(1)  # B x N -> B x C(=1) x H x W
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W * H)  # B X 256 X N
 
