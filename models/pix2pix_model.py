@@ -37,6 +37,8 @@ class Pix2PixModel(torch.nn.Module):
                 self.smoothnessLoss = networks.SmoothnessLoss()
             if opt.use_reconstruction_loss:
                 self.reconstructionLoss = networks.ReconstructionLoss()
+            if opt.use_contextual_loss:
+                self.contextualLoss = networks.ContextualLoss()
 
     # parses LAB into L and AB.
     # This shouldn't make new copies. It should also handle batch cases
@@ -194,6 +196,9 @@ class Pix2PixModel(torch.nn.Module):
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
+
+        if self.opt.use_contextual_loss:
+            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
 
         return G_losses, fake_LAB
 
