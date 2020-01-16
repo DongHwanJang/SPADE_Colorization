@@ -188,8 +188,7 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['GAN_Feat'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
-            G_losses['VGG'] = self.criterionVGG(fake_LAB, reference_LAB) \
-                * self.opt.lambda_vgg
+            G_losses['VGG'] = self.criterionVGG(fake_LAB, target_LAB) * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss(fake_LAB)
