@@ -39,7 +39,7 @@ class ImagenetDataset(Pix2pixDataset):
         for line in data:
             ref_top_n = dict()
             for ref_score, (ref_name, ref_similarity) in enumerate(zip(line[1::2], line[2::2])):
-                ref_top_n[ref_score] = [ref_name]
+                ref_top_n[ref_score + 1] = ref_name  # ref_score(top-n) needs to count from 1 (not 0)
                 # TODO: use similarity (cosine distance) score for test result
                 # ref_top_n[ref_score] = [ref_name, ref_similarity]
             pair_data[line[0]] = ref_top_n

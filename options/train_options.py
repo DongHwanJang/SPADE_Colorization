@@ -28,6 +28,12 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--beta2', type=float, default=0.9, help='momentum term of adam')
         parser.add_argument('--no_TTUR', action='store_true', help='Use TTUR training scheme')
 
+        parser.add_argument('--use_smoothness_loss', action='store_true', help='Use smoothness loss')
+        parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
+        parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
+
+
+
         # the default values for beta1 and beta2 differ by TTUR option
         opt, _ = parser.parse_known_args()
         if opt.no_TTUR:

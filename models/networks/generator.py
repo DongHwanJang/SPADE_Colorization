@@ -76,10 +76,8 @@ class SPADEGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, input, z=None):
-        # Assume that input = (tgt, ref)
-
-        tgt, ref = input
+    def forward(self, tgt, ref, z=None):
+        # Assume that input = (tgt, ref)  # changes to get each as input variable
         corr_map, conf_map, tgt_value = self.corr_subnet(tgt, ref)
 
         if self.opt.use_vae:

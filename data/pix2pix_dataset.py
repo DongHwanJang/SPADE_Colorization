@@ -45,16 +45,18 @@ class Pix2pixDataset(BaseDataset):
         target_path = self.target_paths[index]
 
         # randomly chose from top-n nearest reference
-        similarity = numpy.random.choice(range(self.top_n_reference), 1)
+        similarity = numpy.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
         reference_path = self.target_ref_dict[target_path][similarity]
 
-        target_LAB = pil_loader(target_path)
-        reference_LAB = pil_loader(reference_path)
+        target_LAB = pil_loader(self.opt, target_path, is_ref=False)
+        reference_LAB = pil_loader(self.opt, reference_path, is_ref=True)
 
         transform_image = get_transform(self.opt, params)
 
         target_LAB = transform_image(target_LAB)
         reference_LAB = transform_image(reference_LAB)
+
+
 
         input_dict = {'target_LAB': target_LAB,
                       'reference_LAB': reference_LAB,

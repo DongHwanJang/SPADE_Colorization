@@ -30,7 +30,10 @@ class Pix2PixModel(torch.nn.Module):
                 opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
             self.criterionFeat = torch.nn.L1Loss()
             if not opt.no_vgg_loss:
-                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
+                # self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
+                # set vgg=None because the version for vgg in perceptual loss may be different
+                # with that in using corr_feat
+                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
@@ -44,21 +47,21 @@ class Pix2PixModel(torch.nn.Module):
     # This shouldn't make new copies. It should also handle batch cases
     def parse_LAB(self, image_LAB):
         if len(image_LAB.size()) == 4:
-            image_L = image_LAB[:,0,:]
-            image_A = image_LAB[:,1,:]
-            image_B = image_LAB[:,2,:]
-            image_AB = torch.stack([image_A, image_B], 1)
+            image_L = image_LAB[:, 0, :, :].unsqueeze(1)
+            image_A = image_LAB[:, 1, :, :].unsqueeze(1)
+            image_B = image_LAB[:, 2, :, :].unsqueeze(1)
+            image_AB = torch.cat([image_A, image_B], 1)
+            return image_L, image_AB
 
         elif len(image_LAB.size()) == 3:
-            image_L = image_LAB[0]
-            image_A = image_LAB[1]
-            image_B = image_LAB[2]
-            image_AB = torch.stack([image_A, image_B], 0)
+            # It would be a tensor whose batch size = 1.
+            # Then, unsqueeze to be 4D tensor?
+            self.parse_LAB(image_LAB.unsqueeze(0))
 
         else:
-            raise("Pass 3D or 4D tensor")
+            raise ("Pass 3D or 4D tensor")
 
-        return image_L, image_AB
+
 
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module

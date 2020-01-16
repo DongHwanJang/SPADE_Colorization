@@ -41,7 +41,7 @@ class SPADEResnetBlock(nn.Module):
 
         # define normalization layers
         spade_config_str = opt.norm_G.replace('spectral', '')
-        self.norm_0 = SPADE(spade_config_str, fin, opt.s)
+        self.norm_0 = SPADE(spade_config_str, fin, opt.semantic_nc)
         self.norm_1 = SPADE(spade_config_str, fmiddle, opt.semantic_nc)
         if self.learned_shortcut:
             self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
@@ -78,10 +78,12 @@ class ResnetBlock(nn.Module):
         pw = (kernel_size - 1) // 2
         self.conv_block = nn.Sequential(
             nn.ReflectionPad2d(pw),
-            norm_layer(nn.Conv2d(dim, dim, kernel_size=kernel_size)),
+            nn.Conv2d(dim, dim, kernel_size=kernel_size),
+            norm_layer,
             activation,
             nn.ReflectionPad2d(pw),
-            norm_layer(nn.Conv2d(dim, dim, kernel_size=kernel_size))
+            nn.Conv2d(dim, dim, kernel_size=kernel_size),
+            norm_layer,
         )
 
     def forward(self, x):
@@ -93,7 +95,7 @@ class ResnetBlock(nn.Module):
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
 class VGG19(nn.Module):
     def __init__(self, requires_grad=False):
-        super(VGG19).__init__()
+        super(VGG19, self).__init__()
         vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
         self.slice1 = nn.Sequential()
         self.slice2 = nn.Sequential()
@@ -246,10 +248,10 @@ class Vgg19BN(nn.Module):
             for param in self.parameters():
                 param.requires_grad = False
 
-    def forward(self, x, corr_feat=True):
+    def forward(self, x, corr_feature=True):
         features = []
         # pretend that it is used for correlation loss
-        if corr_feat:
+        if corr_feature:
             for idx in range(15):
                 x = self.layers[idx](x)
             features.append(x)  # relu2_2
@@ -292,7 +294,8 @@ class VGGFeatureExtractor(nn.Module):
         super(VGGFeatureExtractor, self).__init__()
 
         # create vgg Model
-        if opt.ref_type == 'l' or opt.ref_type == 'ab' or opt.ref_type == 'lab':
+        self.opt = opt
+        if self.opt.ref_type == 'l' or self.opt.ref_type == 'ab' or self.opt.ref_type == 'lab':
             self.vgg = Vgg19BN().cuda().eval()
             self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         else:
@@ -325,24 +328,28 @@ class VGGFeatureExtractor(nn.Module):
             self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
             self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
 
-        self.conv_concate = nn.Conv1d(256*4, 256, kernel_size=1)
-        self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d)
-        self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d)
-        self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.conv_concate = nn.Conv2d(256*4, 256, kernel_size=1)
+        self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d(256))
+        self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d(256))
+        self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
-        self.resblock_value_0 = ResnetBlock(256, nn.InstanceNorm2d)
-        self.resblock_value_1 = ResnetBlock(256, nn.InstanceNorm2d)
-        self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d)
+        self.resblock_value_0 = ResnetBlock(256, nn.InstanceNorm2d(256))
+        self.resblock_value_1 = ResnetBlock(256, nn.InstanceNorm2d(256))
+        self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
 
     def forward(self, x, isValue=False):
+
+        if self.opt.ref_type == 'l' and x.size()[0] == 1:
+            x = x.expand(-1, 3, -1, -1)
+
         vgg_feature = self.vgg(x, corr_feature=True)
         vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
         vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
         vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
         vgg_feature[3] = self.conv_5_2_1(self.actvn(self.conv_5_2_0(vgg_feature[3])))
 
-        x = torch.stack(vgg_feature, dim=1)
+        x = torch.cat(vgg_feature, dim=1)
         x = self.conv_concate(x)
 
         if not isValue:
@@ -407,12 +414,12 @@ class CorrSubnet(nn.Module):
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
     def forward(self, tgt, ref):
-        tgt = self.vgg_feature_extracter(tgt)
-        ref = self.vgg_feature_extracter(ref)
+        tgt_feature = self.vgg_feature_extracter(tgt)
+        ref_feature = self.vgg_feature_extracter(ref)
 
         ref_value = self.vgg_feature_extracter(ref, isValue=True)
 
-        corr_map, conf_map, out = self.non_local_blk(ref, tgt, ref_value)
+        corr_map, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
 
         return corr_map, conf_map, out
 
