@@ -121,10 +121,17 @@ class VGGLoss(nn.Module):
 
 # KL Divergence loss used in VAE with an image encoder
 class KLDLoss(nn.Module):
+    def __init__(self):
+        super(KLDLoss, self).__init__()
+
     def forward(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
+
 class SmoothnessLoss(nn.Module):
+    def __init__(self):
+        super(SmoothnessLoss, self).__init__()
+
     def get_near_by_coords(self, h, w, height, width):
         coords_candidates = [
             (h-1, w-1),
@@ -148,34 +155,39 @@ class SmoothnessLoss(nn.Module):
 
         return coords
 
-    def forward(self, input):
-        height = input.shape[1]
-        width = input.shape[2]
+    def forward(self, x):
+        height, width = x.size()[2:]
         error = 0
 
         for c in range(2):
-            wls_weight = wls_filter(input[c])
+            wls_weight = wls_filter(x[c, :, :])
             for h in range(height):
                 for w in range(width):
                     coords = self.get_near_by_coords(h, w, height, width)
                     sum = 0
                     for (y, x) in coords:
-                        sum += wls_weight[y, x] * input[c, y, x]
-                    diff = input[c, h,  w] - sum
+                        sum += wls_weight[y, x] * x[c, y, x]
+                    diff = x[c, h, w] - sum
                     error += diff
 
-        return error/(height*width)
+        return error / (height * width)
+
 
 class ReconstructionLoss(nn.Module):
     def __init__(self):
+        super(ReconstructionLoss, self).__init__()
         self.loss = nn.SmoothL1Loss()
 
     def forward(self, fake_LAB, reference_LAB):
         return self.loss(fake_LAB, reference_LAB)
 
+
 # source: https://gist.github.com/yunjey/3105146c736f9c1055463c33b4c989da
 class ContextualLoss(nn.Module):
-    def forward(x, y, h=0.5):
+    def __init__(self):
+        super(ContextualLoss, self).__init__()
+
+    def forward(self, x, y, h=0.5):
         """Computes contextual loss between x and y.
 
             Args:
