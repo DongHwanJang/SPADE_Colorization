@@ -1,1 +1,1 @@
-python train.py --use_reconstruction_loss
+python train.py --use_reconstruction_loss --use_contextual_loss

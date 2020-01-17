@@ -134,14 +134,14 @@ class SmoothnessLoss(nn.Module):  # This does not nn.Module
 
     def get_near_by_coords(self, h, w, height, width):
         coords_candidates = [
-            (h-1, w-1),
-            (h-1, w),
-            (h-1, w+1),
-            (h, w-1),
-            (h, w+1),
-            (h+1, w-1),
-            (h+1, w),
-            (h+1, w+1)
+            (h - 1, w - 1),
+            (h - 1, w),
+            (h - 1, w + 1),
+            (h, w - 1),
+            (h, w + 1),
+            (h + 1, w - 1),
+            (h + 1, w),
+            (h + 1, w + 1)
         ]
 
         coords = []
@@ -198,7 +198,7 @@ class ContextualLoss(nn.Module):
               cx_loss = contextual loss between x and y (Eq (1) in the paper)
             """
         assert x.size() == y.size()
-        N, C, H, W = x.size()  # e.g., 10 x 512 x 14 x 14. In this case, the number of points is 196 (14x14).
+        N, C, H, W = x.size()
 
         y_mu = y.mean(3).mean(2).mean(0).reshape(1, -1, 1, 1)
 
@@ -207,16 +207,19 @@ class ContextualLoss(nn.Module):
         x_normalized = x_centered / torch.norm(x_centered, p=2, dim=1, keepdim=True)
         y_normalized = y_centered / torch.norm(y_centered, p=2, dim=1, keepdim=True)
 
+        # FIXME: is it best using F.interpolate for scaling down?
+        x_normalized = F.interpolate(x_normalized, (H // 4, W // 4), mode='bilinear',
+                                     align_corners=False)  # (N, C, H/4, W/4)
+        y_normalized = F.interpolate(y_normalized, (H // 4, W // 4), mode='bilinear',
+                                     align_corners=False)  # (N, C, H/4, W/4)
+
         # The equation at the bottom of page 6 in the paper
         # Vectorized computation of cosine similarity for each pair of x_i and y_j
-        x_normalized = x_normalized.reshape(N, C, -1)  # (N, C, H*W)
-        y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H*W)
-        cosine_sim = torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H*W, H*W)
+        x_normalized = x_normalized.reshape(N, C, -1)  # (N, C, H/4 * W/4)
+        y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H/4 * W/4)
 
-        print(cosine_sim.size())
-
-        d = 1 - cosine_sim  # (N, H*W, H*W)  d[n, i, j] means d_ij for n-th data
-        d_min, _ = torch.min(d, dim=2, keepdim=True)  # (N, H*W, 1)
+        d = 1 - torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H/4 * W/4, H/4 * W/4)
+        d_min, _ = torch.min(d, dim=2, keepdim=True)  # (N, H/4 * W/4, 1)
 
         # Eq (2)
         d_tilde = d / (d_min + 1e-5)
@@ -225,7 +228,7 @@ class ContextualLoss(nn.Module):
         w = torch.exp((1 - d_tilde) / h)
 
         # Eq(4)
-        cx_ij = w / torch.sum(w, dim=2, keepdim=True)  # (N, H*W, H*W)
+        cx_ij = w / torch.sum(w, dim=2, keepdim=True)  # (N, H/4 * W/4, H/4 * W/4)
 
         # Eq (1)
         cx = torch.mean(torch.max(cx_ij, dim=1)[0], dim=1)  # (N, )
