@@ -128,7 +128,7 @@ class KLDLoss(nn.Module):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
 
-class SmoothnessLoss(nn.Module):
+class SmoothnessLoss(nn.Module):  # This does not nn.Module
     def __init__(self):
         super(SmoothnessLoss, self).__init__()
 
@@ -156,7 +156,7 @@ class SmoothnessLoss(nn.Module):
         return coords
 
     def forward(self, x):
-        height, width = x.size()[2:]
+        height, width = x.shape[2:]
         error = 0
 
         for c in range(2):
@@ -212,6 +212,8 @@ class ContextualLoss(nn.Module):
         x_normalized = x_normalized.reshape(N, C, -1)  # (N, C, H*W)
         y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H*W)
         cosine_sim = torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H*W, H*W)
+
+        print(cosine_sim.size())
 
         d = 1 - cosine_sim  # (N, H*W, H*W)  d[n, i, j] means d_ij for n-th data
         d_min, _ = torch.min(d, dim=2, keepdim=True)  # (N, H*W, 1)

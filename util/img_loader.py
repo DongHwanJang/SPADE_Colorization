@@ -15,3 +15,12 @@ def pil_loader(opt, path, is_ref=False):
             img = img.convert('RGB')
             # TODO: choose whether ref_img contains lab, or l
             return ImageCms.applyTransform(img, rgb2lab_transform)
+
+
+def rgb_loader(opt, path, is_ref=False):
+    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    phase = 'val/' if opt.phase == 'test' else 'train/'
+    filename = opt.dataroot + phase + path
+    with open(filename, 'rb') as f:
+        with Image.open(f) as img:
+            return img.convert('RGB')

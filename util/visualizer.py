@@ -9,6 +9,8 @@ import time
 from . import util
 from . import html
 import scipy.misc
+import torch
+
 try:
     from StringIO import StringIO  # Python 2.7
 except ImportError:
@@ -126,14 +128,18 @@ class Visualizer():
             log_file.write('%s\n' % message)
 
     def convert_visuals_to_numpy(self, visuals):
+        new_visuals = dict()
         for key, t in visuals.items():
-            tile = self.opt.batchSize > 8
-            if 'input_label' == key:
-                t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
+            if not isinstance(t, torch.Tensor):
+                pass
             else:
-                t = util.tensor2im(t, tile=tile)
-            visuals[key] = t
-        return visuals
+                tile = self.opt.batchSize > 8
+                if 'input_label' == key:
+                    t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
+                else:
+                    t = util.tensor2im(t, tile=tile)
+                new_visuals[key] = t
+        return new_visuals
 
     # save image to the disk
     def save_images(self, webpage, visuals, image_path):        

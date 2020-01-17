@@ -77,8 +77,7 @@ class Pix2PixModel(torch.nn.Module):
                 target_L, target_LAB, reference_LAB, is_reconstructing=data["is_reconstructing"])
             return g_loss, generated
         elif mode == 'discriminator':
-            d_loss = self.compute_discriminator_loss(
-                target_LAB, reference_LAB)
+            d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
             return d_loss
         # elif mode == 'encode_only':
         #     z, mu, logvar = self.encode_z(real_image)
@@ -194,7 +193,7 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['VGG'] = self.criterionVGG(fake_LAB, target_LAB) * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss(fake_LAB)
+            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB)
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)

@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 # import util.util as util
-from util.pil_loader import pil_loader
+from util.img_loader import pil_loader, rgb_loader
 import os
 import numpy
 
@@ -50,15 +50,17 @@ class Pix2pixDataset(BaseDataset):
 
         target_LAB = pil_loader(self.opt, target_path, is_ref=False)
         reference_LAB = pil_loader(self.opt, reference_path, is_ref=True)
+        target_rgb = rgb_loader(self.opt, target_path, is_ref=False)
 
         transform_image = get_transform(self.opt, params)
 
         target_LAB = transform_image(target_LAB)
         reference_LAB = transform_image(reference_LAB)
+        target_rgb = transform_image(target_rgb)
 
-
-
-        input_dict = {'target_LAB': target_LAB,
+        input_dict = {'label': target_path,
+                      'image': target_rgb,
+                      'target_LAB': target_LAB,
                       'reference_LAB': reference_LAB,
                       "similarity": similarity,
                       'is_reconstructing': False}
