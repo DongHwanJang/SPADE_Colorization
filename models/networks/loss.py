@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.networks.architecture import VGG19, Vgg19BN
 from util.WLSFilter import wls_filter
+import util.util as util
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
@@ -110,7 +111,8 @@ class VGGLoss(nn.Module):
         # elif opt.ref_type == 'l' or opt.ref_type == 'l':
         #     self.vgg = Vgg19BN_LAB_Trained().cuda()
         else:
-            self.vgg = Vgg19BN().cuda()
+            self.vgg = Vgg19BN().cuda().eval()
+            self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
