@@ -60,7 +60,8 @@ for epoch in iter_counter.training_epochs():
         if iter_counter.needs_displaying():
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('synthesized_image', trainer.get_latest_generated()),
-                                   ('real_image', data_i['image']),
+                                   ('target_image', data_i['target_image']),
+                                   ('reference_image', data_i['reference_image']),
                                    ('target_LAB', data_i['target_LAB']),
                                    ('reference_LAB', data_i['reference_LAB']),
                                    ])

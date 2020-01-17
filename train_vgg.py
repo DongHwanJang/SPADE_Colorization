@@ -18,7 +18,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 from PIL import Image
-from util.img_loader import pil_loader
+from util.img_loader import lab_loader
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -213,7 +213,7 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.ToTensor(),
             normalize,
         ]),
-        loader=pil_loader
+        loader=lab_loader
     )
 
     if args.distributed:
@@ -232,7 +232,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                  transforms.CenterCrop(224),
                                  transforms.ToTensor(),
                                  normalize, ]),
-                             loader=pil_loader),
+                             loader=lab_loader),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 

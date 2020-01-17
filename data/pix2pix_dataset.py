@@ -6,9 +6,10 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 # import util.util as util
-from util.img_loader import pil_loader, rgb_loader
+from util.img_loader import lab_loader, rgb_loader
 import os
 import numpy
+
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -48,25 +49,27 @@ class Pix2pixDataset(BaseDataset):
         similarity = numpy.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
         reference_path = self.target_ref_dict[target_path][similarity]
 
-        target_LAB = pil_loader(self.opt, target_path, is_ref=False)
-        reference_LAB = pil_loader(self.opt, reference_path, is_ref=True)
-        target_rgb = rgb_loader(self.opt, target_path, is_ref=False)
+        target_LAB = lab_loader(self.opt, target_path, is_ref=False)
+        reference_LAB = lab_loader(self.opt, reference_path, is_ref=True)
+        target_rgb = rgb_loader(self.opt, target_path)
+        reference_rgb = rgb_loader(self.opt, reference_path)
 
         transform_image = get_transform(self.opt, params)
 
         target_LAB = transform_image(target_LAB)
         reference_LAB = transform_image(reference_LAB)
         target_rgb = transform_image(target_rgb)
+        reference_rgb = transform_image(reference_rgb)
 
         input_dict = {'label': target_path,
-                      'image': target_rgb,
+                      'target_image': target_rgb,
+                      'reference_image': reference_rgb,
                       'target_LAB': target_LAB,
                       'reference_LAB': reference_LAB,
                       "similarity": similarity,
                       'is_reconstructing': False}
 
         return input_dict
-
 
     def __len__(self):
         return self.dataset_size
