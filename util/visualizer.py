@@ -59,7 +59,7 @@ class Visualizer():
                     s = BytesIO()
                 if len(image_numpy.shape) >= 4:
                     image_numpy = image_numpy[0]
-                if 'lab' in label.lower():
+                if 'lab' in label.lower() or 'synth' in label.lower():
                     # convert LAB to RGB
                     image_numpy = lab_deloader(Image.fromarray(image_numpy), np_output=True)
                 scipy.misc.toimage(image_numpy).save(s, format="jpeg")
