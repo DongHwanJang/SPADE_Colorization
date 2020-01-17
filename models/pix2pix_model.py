@@ -193,7 +193,7 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['VGG'] = self.criterionVGG(fake_LAB, target_LAB) * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB)
+            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
