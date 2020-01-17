@@ -27,6 +27,10 @@ def rgb_loader(opt, path):
             return img.convert('RGB')
 
 
-def lab_deloader(img):
+def lab_deloader(lab, np_output=False):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
-    return ImageCms.applyTransform(img, lab2rgb_transform)
+    rgb = ImageCms.applyTransform(lab, lab2rgb_transform)
+    if np_output:
+        return np.array(rgb)
+    else:
+        return rgb

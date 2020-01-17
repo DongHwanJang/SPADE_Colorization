@@ -33,7 +33,7 @@ class Pix2PixModel(torch.nn.Module):
                 # self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
                 # set vgg=None because the version for vgg in perceptual loss may be different
                 # with that in using corr_feat
-                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
+                self.criterionVGG = networks.VGGLoss(self.opt, self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:

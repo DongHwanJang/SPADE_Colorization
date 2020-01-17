@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.networks.architecture import VGG19
+from models.networks.architecture import VGG19, Vgg19BN
 from util.WLSFilter import wls_filter
 
 
@@ -102,17 +102,21 @@ class GANLoss(nn.Module):
 
 # Perceptual loss that uses a pretrained VGG network
 class VGGLoss(nn.Module):
-    def __init__(self, gpu_ids, vgg=None):
+    def __init__(self, opt, gpu_ids, vgg=None):
         super(VGGLoss, self).__init__()
         if vgg is not None:
             self.vgg = vgg
+        # TODO: We Need LAB Trained!!!!!!!!!!!!!!
+        # elif opt.ref_type == 'l' or opt.ref_type == 'l':
+        #     self.vgg = Vgg19BN_LAB_Trained().cuda()
         else:
-            self.vgg = VGG19().cuda()
+            self.vgg = Vgg19BN().cuda()
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
     def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+
+        x_vgg, y_vgg = self.vgg(x, corr_feature=False), self.vgg(y, corr_feature=False)
         loss = 0
         for i in range(len(x_vgg)):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
