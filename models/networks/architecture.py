@@ -337,10 +337,14 @@ class VGGFeatureExtractor(nn.Module):
         self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
 
-    def forward(self, x, isValue=False):
+    def forward(self, x, isValue=False, is_ref=True):
 
-        if self.opt.ref_type == 'l' and x.size()[0] == 1:
-            x = x.expand(-1, 3, -1, -1)
+        if is_ref:
+            x = x[:, 0, :, :].unsqueeze(1).expand(-1, 3, -1, -1)
+        else:
+            if self.opt.ref_type == 'l' and x.size()[1] == 1:
+                x = x.expand(-1, 3, -1, -1)
+
 
         vgg_feature = self.vgg(x, corr_feature=True)
         vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
@@ -414,10 +418,10 @@ class CorrSubnet(nn.Module):
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
     def forward(self, tgt, ref):
-        tgt_feature = self.vgg_feature_extracter(tgt)
-        ref_feature = self.vgg_feature_extracter(ref)
+        tgt_feature = self.vgg_feature_extracter(tgt, is_ref=False)
+        ref_feature = self.vgg_feature_extracter(ref, is_ref=True)
 
-        ref_value = self.vgg_feature_extracter(ref, isValue=True)
+        ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
 
         corr_map, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
 

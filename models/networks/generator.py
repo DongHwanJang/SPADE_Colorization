@@ -182,5 +182,6 @@ class Pix2PixHDGenerator(BaseNetwork):
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, input, z=None):
-        return self.model(input)
+    def forward(self, x, z=None):
+        print(x.size())
+        return self.model(x)
