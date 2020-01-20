@@ -165,6 +165,8 @@ class Pix2PixModel(torch.nn.Module):
 
         # if not using VAE, this is just a forward pass of G
         fake_LAB, _ = self.generate_fake(target_L, reference_LAB)
+        # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
+        fake_LAB = torch.cat([target_L, fake_LAB[:, 1:, :, :]], dim=1)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
