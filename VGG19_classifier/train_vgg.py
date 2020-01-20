@@ -18,7 +18,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from VGG19 import vgg19_bn
 from PIL import Image
-from pil_loader import pil_loader
+from pil_loader import get_pil_loader
 
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
@@ -73,7 +73,7 @@ parser.add_argument('--save-epoch', type=int, default = 5,
                     help='how often to save checkpoints')
 parser.add_argument("--image-mode", type=str, default="LAB",
                     help="Determines how images will be loaded and which network architecture will be usesed. "
-                         "Chose among: LAB, L, AB.")
+                         "Chose among: LAB, L")
 parser.add_argument("--name", type=str, default="None",
                     help="name of the experiment. Checkpoints will be saved under VGG19_checkpoints/NAME")
 
@@ -112,13 +112,10 @@ def main():
     if args.image_mode == "RGB" or args.image_mode == "LAB":
         args.in_channels = 3
 
-    if args.image_mode == "AB":
-        args.in_channels = 2
-
     elif args.image_mode == "L":
         args.in_channels = 1
 
-    if args.image_mode not in ["RGB", "LAB", "L", "AB"]:
+    if args.image_mode not in ["RGB", "LAB", "L"]:
         raise ValueError("allowed values for --image-mode are: LAB, RGB, and L")
 
     if args.seed is not None:
@@ -230,6 +227,7 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
+    pil_loader = get_pil_loader(args.image_mode)
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],

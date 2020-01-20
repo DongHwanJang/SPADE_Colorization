@@ -82,5 +82,5 @@ To train our model along with an image encoder to enable multi-modal outputs as 
 
 ## Pretrain VGG
 ```bash
-python VGG19_classifier/train_vgg.py --name vn_AB_1 --image-mode AB --output-path /opt/project/VGG19_classifier/ --data /opt/data/imagenet
+python opt/project/VGG19_classifier/train_vgg.py --name LAB_1 --image-mode LAB --output-path /opt/project/VGG19_classifier/ --data /opt/data/imagenet
 ```
