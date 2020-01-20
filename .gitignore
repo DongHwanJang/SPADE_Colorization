@@ -6,5 +6,4 @@ results/
 *.pkl
 *.pyc
 *.pth
-test_tensor.py
 .vscode/
