@@ -10,7 +10,9 @@ from . import util
 from . import html
 import scipy.misc
 import torch
+import torchvision.transforms as transforms
 from util.img_loader import lab_deloader
+import numpy as np
 
 from PIL import Image
 
@@ -61,7 +63,7 @@ class Visualizer():
                     image_numpy = image_numpy[0]
                 if 'lab' in label.lower() or 'synth' in label.lower():
                     # convert LAB to RGB
-                    image_numpy = lab_deloader(Image.fromarray(image_numpy), np_output=True)
+                    image_numpy = lab_deloader(Image.fromarray(image_numpy.astype(np.uint8), mode='LAB'), np_output=True)
                 scipy.misc.toimage(image_numpy).save(s, format="jpeg")
                 # Create an Image object
                 img_sum = self.tf.Summary.Image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])

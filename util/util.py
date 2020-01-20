@@ -86,6 +86,7 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
 
     if image_tensor.dim() == 2:
         image_tensor = image_tensor.unsqueeze(0)
+
     image_numpy = image_tensor.detach().cpu().float().numpy()
     if normalize:
         image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
@@ -134,9 +135,12 @@ def save_image(image_numpy, image_path, create_dir=False):
         image_numpy = np.expand_dims(image_numpy, axis=2)
     if image_numpy.shape[2] == 1:
         image_numpy = np.repeat(image_numpy, 3, 2)
-    image_pil = Image.fromarray(image_numpy)
+
     if 'lab' in image_path.lower() or 'synth' in image_path.lower():
+        image_pil = Image.fromarray(image_numpy.astype(np.uint8), mode='LAB')
         image_pil = lab_deloader(image_pil, np_output=False)
+    else:
+        image_pil = Image.fromarray(image_numpy.astype(np.uint8))
     # save to png
     image_pil.save(image_path.replace('.jpg', '.png'))
 

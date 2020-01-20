@@ -8,3 +8,6 @@ results/
 *.pth
 test_tensor.py
 .vscode/
+venv/
+*.png
+*.jpeg
