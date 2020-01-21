@@ -386,9 +386,9 @@ class NonLocalBlock(nn.Module):
         proj_query = self.query_conv(query).view(B, -1, W_query * H_query).permute(0, 2, 1)  # B X CX(N) -> B x N x C
         proj_key = self.key_conv(key).view(B, -1, W_key * H_key)  # B X C x (W_key*H_key)
         if unit_mult:
-            proj_query = proj_query-torch.mean(proj_query, dim=2, keepdim=True)
+            proj_query = proj_query-torch.mean(proj_query, dim=1, keepdim=True)
             proj_query = proj_query/torch.norm(proj_query, dim=2, keepdim=True)
-            proj_key = proj_key - torch.mean(proj_key, dim=1, keepdim=True)
+            proj_key = proj_key - torch.mean(proj_key, dim=2, keepdim=True)
             proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
 
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key

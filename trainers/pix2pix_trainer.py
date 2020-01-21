@@ -130,7 +130,9 @@ class Pix2PixTrainer():
 
         reference_LAB = self.data["reference_LAB"]
         target_LAB = self.data["target_LAB"]
+
         # TODO
+
 
 
 
