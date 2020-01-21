@@ -115,7 +115,7 @@ class Pix2PixTrainer():
         pts_lt = []
 
         for i in range(1, n_partition):
-            for j in range(n_partition):
+            for j in range(1, n_partition):
                 pts_lt.append((H_tgt/4*i, W_tgt/4*j))
 
         return pts_lt
