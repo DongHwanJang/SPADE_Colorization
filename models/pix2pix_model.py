@@ -73,9 +73,9 @@ class Pix2PixModel(torch.nn.Module):
         target_L, target_AB = self.parse_LAB(target_LAB)
 
         if mode == 'generator':
-            g_loss, generated = self.compute_generator_loss(
+            g_loss, generated, attention, conf_map = self.compute_generator_loss(
                 target_L, target_LAB, reference_LAB, is_reconstructing=data["is_reconstructing"])
-            return g_loss, generated
+            return g_loss, generated, attention, conf_map
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(
                 target_LAB, reference_LAB)
@@ -85,7 +85,7 @@ class Pix2PixModel(torch.nn.Module):
         #     return mu, logvar
         elif mode == 'inference':
             with torch.no_grad():
-                fake_image, _ = self.generate_fake(target_L, reference_LAB)
+                fake_image, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
             return fake_image
         else:
             raise ValueError("|mode| is invalid")
@@ -165,7 +165,7 @@ class Pix2PixModel(torch.nn.Module):
 
 
         # if not using VAE, this is just a forward pass of G
-        fake_LAB, _ = self.generate_fake(target_L, reference_LAB)
+        fake_LAB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB, )
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
@@ -202,12 +202,12 @@ class Pix2PixModel(torch.nn.Module):
         if self.opt.use_contextual_loss:
             G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
 
-        return G_losses, fake_LAB
+        return G_losses, fake_LAB, attention, conf_map
 
     def compute_discriminator_loss(self, target_L, target_LAB, reference_LAB):
         D_losses = {}
         with torch.no_grad():
-            fake_LAB, _ = self.generate_fake(target_L, reference_LAB)
+            fake_LAB, _, _, _ = self.generate_fake(target_L, reference_LAB)
             fake_LAB = fake_LAB.detach()
             fake_LAB.requires_grad_()
 
@@ -235,12 +235,12 @@ class Pix2PixModel(torch.nn.Module):
         #         KLD_loss = self.KLDLoss(mu, logvar) * self.opt.lambda_kld
 
         # G forward during training
-        fake_image = self.netG(target_L, reference_LAB, z=z)
+        fake_image, attention, conf_map = self.netG(target_L, reference_LAB, z=z)
 
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 
-        return fake_image, KLD_loss
+        return fake_image, KLD_loss, attention, conf_map
 
     # Given fake and real image, return the prediction of discriminator
     # for each fake and real image.

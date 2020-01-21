@@ -5,6 +5,9 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 
 from models.networks.sync_batchnorm import DataParallelWithCallback
 from models.pix2pix_model import Pix2PixModel
+import numpy as np
+import torch.nn.functional as F
+import torch
 
 
 class Pix2PixTrainer():
@@ -25,6 +28,10 @@ class Pix2PixTrainer():
             self.pix2pix_model_on_one_gpu = self.pix2pix_model
 
         self.generated = None
+        self.attention= None
+        self.conf_map = None
+        self.data = None
+
         if opt.isTrain:
             self.optimizer_G, self.optimizer_D = \
                 self.pix2pix_model_on_one_gpu.create_optimizers(opt)
@@ -32,12 +39,15 @@ class Pix2PixTrainer():
 
     def run_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
-        g_losses, generated = self.pix2pix_model(data, mode='generator')
+        g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
         g_loss = sum(g_losses.values()).mean()
         g_loss.backward()
         self.optimizer_G.step()
         self.g_losses = g_losses
         self.generated = generated
+        self.attention = attention
+        self.conf_map = conf_map
+        self.data = data
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
@@ -52,6 +62,80 @@ class Pix2PixTrainer():
 
     def get_latest_generated(self):
         return self.generated
+
+    def get_latest_conf(self):
+        return self.conf_map.detach().cpu()
+
+    def get_latest_attention(self):
+        self.attention = self.attention.detach().cpu()
+        self.conf_map = self.conf_map.detach().cpu()
+
+        points = []
+
+        # attention => query x key
+        points += self.get_grid_points()
+        points += self.get_top_conf_points()
+        points += self.get_random_points()
+
+        attention_visuals = []
+
+        for point in points:
+            attention_visuals.append(self.get_attention_visual(point))
+
+        return attention_visuals
+
+    def get_grid_points(self, n_partition = 4):
+        _, H_tgt, W_tgt, _, _ = self.attention.size()
+        pts_lt = []
+
+        for i in range(1, n_partition):
+            for j in range(n_partition):
+                pts_lt.append((H_tgt/4*i, W_tgt/4*j))
+
+        return pts_lt
+
+    def get_top_conf_points(self, num_pts=3):
+        temp_tensor = self.conf_map[0].clone()
+        min_value = torch.min(temp_tensor)
+        H, W =temp_tensor.size()[0], temp_tensor.size()[1]
+        window_sz_h = H // (num_pts+1)
+        window_sz_w = W // (num_pts + 1)
+
+        pts_lt = []
+
+        for i in range(num_pts):
+            pt = torch.argmax(temp_tensor)
+            x = pt%H
+            y = pt//H
+            pts_lt.append((x,y))
+
+            for j in range(np.max([0,x-window_sz_h//2]), np.min([H, x + window_sz_h//2])):
+                for k in range(np.max([0, y-window_sz_w//2]), np.min([W, y + window_sz_w//2])):
+                    temp_tensor[j][k]=min_value
+
+        return pts_lt
+
+    def get_random_points(self, num_pts=3):
+        pts_lt = []
+
+        for i in range(num_pts):
+            pts_lt.append(np.random.randint(self.conf_map.size()[1]), np.random.randint(self.conf_map.size()[2]))
+
+        return pts_lt
+
+    def get_attention_visual(self, point):
+        pointwise_attention = self.attention[0][point[0]][point[1]] # H_key x W_key
+
+        F.interpolate(pointwise_attention, size=(self.sh, self.sw))
+
+        reference_LAB = self.data["reference_LAB"]
+        target_LAB = self.data["target_LAB"]
+        # TODO
+
+
+
+    def get_latest_image(self):
+        pass
 
     def update_learning_rate(self, epoch):
         self.update_learning_rate(epoch)
