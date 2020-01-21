@@ -74,6 +74,7 @@ class GANLoss(nn.Module):
                     loss = -torch.mean(minval)
             else:
                 assert target_is_real, "The generator's hinge loss must be aiming for real"
+                # TODO: modify GANloss for generator
                 loss = -torch.mean(input)
             return loss
         else:
