@@ -93,18 +93,29 @@ class SPADE(nn.Module):
         self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
         self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
 
-    def forward(self, x, segmap):
+        self.mlp_conv = nn.Conv2d(norm_nc + 1, norm_nc, kernel_size=1)  # fit concat.ed result to output size
+
+    def forward(self, x, seg_map, conf_map=None):
+
+        print("x.size() :", x.size())
 
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
 
         # Part 2. produce scaling and bias conditioned on semantic map
-        segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
-        actv = self.mlp_shared(segmap)
+        seg_map = F.interpolate(seg_map, size=x.size()[2:], mode='nearest')
+        actv = self.mlp_shared(seg_map)
         gamma = self.mlp_gamma(actv)
         beta = self.mlp_beta(actv)
 
         # apply scale and bias
         out = normalized * (1 + gamma) + beta
+
+        # concatenate with confidence map and fit to output size
+        # TODO: make an option to select whether use confidence or not, rather using conf_map=None or not
+        if conf_map is not None:
+            conf_map = F.interpolate(conf_map, size=x.size()[2:], mode='nearest')
+            concat_map = torch.cat([out, conf_map], dim=1)
+            out = self.mlp_conv(concat_map)
 
         return out

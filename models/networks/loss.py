@@ -6,8 +6,9 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.networks.architecture import VGG19
+from models.networks.architecture import VGG19, Vgg19BN
 from util.WLSFilter import wls_filter
+import util.util as util
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
@@ -73,6 +74,7 @@ class GANLoss(nn.Module):
                     loss = -torch.mean(minval)
             else:
                 assert target_is_real, "The generator's hinge loss must be aiming for real"
+                # TODO: modify GANloss for generator
                 loss = -torch.mean(input)
             return loss
         else:
@@ -102,17 +104,22 @@ class GANLoss(nn.Module):
 
 # Perceptual loss that uses a pretrained VGG network
 class VGGLoss(nn.Module):
-    def __init__(self, gpu_ids, vgg=None):
+    def __init__(self, opt, gpu_ids, vgg=None):
         super(VGGLoss, self).__init__()
         if vgg is not None:
             self.vgg = vgg
+        # TODO: We Need LAB Trained!!!!!!!!!!!!!!
+        # elif opt.ref_type == 'l' or opt.ref_type == 'l':
+        #     self.vgg = Vgg19BN_LAB_Trained().cuda()
         else:
-            self.vgg = VGG19().cuda()
+            self.vgg = Vgg19BN().cuda().eval()
+            self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
     def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+
+        x_vgg, y_vgg = self.vgg(x, corr_feature=False), self.vgg(y, corr_feature=False)
         loss = 0
         for i in range(len(x_vgg)):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
@@ -121,20 +128,27 @@ class VGGLoss(nn.Module):
 
 # KL Divergence loss used in VAE with an image encoder
 class KLDLoss(nn.Module):
+    def __init__(self):
+        super(KLDLoss, self).__init__()
+
     def forward(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
-class SmoothnessLoss(nn.Module):
+
+class SmoothnessLoss(nn.Module):  # This does not nn.Module
+    def __init__(self):
+        super(SmoothnessLoss, self).__init__()
+
     def get_near_by_coords(self, h, w, height, width):
         coords_candidates = [
-            (h-1, w-1),
-            (h-1, w),
-            (h-1, w+1),
-            (h, w-1),
-            (h, w+1),
-            (h+1, w-1),
-            (h+1, w),
-            (h+1, w+1)
+            (h - 1, w - 1),
+            (h - 1, w),
+            (h - 1, w + 1),
+            (h, w - 1),
+            (h, w + 1),
+            (h + 1, w - 1),
+            (h + 1, w),
+            (h + 1, w + 1)
         ]
 
         coords = []
@@ -148,34 +162,39 @@ class SmoothnessLoss(nn.Module):
 
         return coords
 
-    def forward(self, input):
-        height = input.shape[1]
-        width = input.shape[2]
+    def forward(self, x):
+        height, width = x.shape[2:]
         error = 0
 
         for c in range(2):
-            wls_weight = wls_filter(input[c])
+            wls_weight = wls_filter(x[c, :, :])
             for h in range(height):
                 for w in range(width):
                     coords = self.get_near_by_coords(h, w, height, width)
                     sum = 0
                     for (y, x) in coords:
-                        sum += wls_weight[y, x] * input[c, y, x]
-                    diff = input[c, h,  w] - sum
+                        sum += wls_weight[y, x] * x[c, y, x]
+                    diff = x[c, h, w] - sum
                     error += diff
 
-        return error/(height*width)
+        return error / (height * width)
+
 
 class ReconstructionLoss(nn.Module):
     def __init__(self):
+        super(ReconstructionLoss, self).__init__()
         self.loss = nn.SmoothL1Loss()
 
     def forward(self, fake_LAB, reference_LAB):
         return self.loss(fake_LAB, reference_LAB)
 
+
 # source: https://gist.github.com/yunjey/3105146c736f9c1055463c33b4c989da
 class ContextualLoss(nn.Module):
-    def forward(x, y, h=0.5):
+    def __init__(self):
+        super(ContextualLoss, self).__init__()
+
+    def forward(self, x, y, h=0.5):
         """Computes contextual loss between x and y.
 
             Args:
@@ -186,7 +205,7 @@ class ContextualLoss(nn.Module):
               cx_loss = contextual loss between x and y (Eq (1) in the paper)
             """
         assert x.size() == y.size()
-        N, C, H, W = x.size()  # e.g., 10 x 512 x 14 x 14. In this case, the number of points is 196 (14x14).
+        N, C, H, W = x.size()
 
         y_mu = y.mean(3).mean(2).mean(0).reshape(1, -1, 1, 1)
 
@@ -195,14 +214,19 @@ class ContextualLoss(nn.Module):
         x_normalized = x_centered / torch.norm(x_centered, p=2, dim=1, keepdim=True)
         y_normalized = y_centered / torch.norm(y_centered, p=2, dim=1, keepdim=True)
 
+        # FIXME: is it best using F.interpolate for scaling down?
+        x_normalized = F.interpolate(x_normalized, (H // 4, W // 4), mode='bilinear',
+                                     align_corners=False)  # (N, C, H/4, W/4)
+        y_normalized = F.interpolate(y_normalized, (H // 4, W // 4), mode='bilinear',
+                                     align_corners=False)  # (N, C, H/4, W/4)
+
         # The equation at the bottom of page 6 in the paper
         # Vectorized computation of cosine similarity for each pair of x_i and y_j
-        x_normalized = x_normalized.reshape(N, C, -1)  # (N, C, H*W)
-        y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H*W)
-        cosine_sim = torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H*W, H*W)
+        x_normalized = x_normalized.reshape(N, C, -1)  # (N, C, H/4 * W/4)
+        y_normalized = y_normalized.reshape(N, C, -1)  # (N, C, H/4 * W/4)
 
-        d = 1 - cosine_sim  # (N, H*W, H*W)  d[n, i, j] means d_ij for n-th data
-        d_min, _ = torch.min(d, dim=2, keepdim=True)  # (N, H*W, 1)
+        d = 1 - torch.bmm(x_normalized.transpose(1, 2), y_normalized)  # (N, H/4 * W/4, H/4 * W/4)
+        d_min, _ = torch.min(d, dim=2, keepdim=True)  # (N, H/4 * W/4, 1)
 
         # Eq (2)
         d_tilde = d / (d_min + 1e-5)
@@ -211,7 +235,7 @@ class ContextualLoss(nn.Module):
         w = torch.exp((1 - d_tilde) / h)
 
         # Eq(4)
-        cx_ij = w / torch.sum(w, dim=2, keepdim=True)  # (N, H*W, H*W)
+        cx_ij = w / torch.sum(w, dim=2, keepdim=True)  # (N, H/4 * W/4, H/4 * W/4)
 
         # Eq (1)
         cx = torch.mean(torch.max(cx_ij, dim=1)[0], dim=1)  # (N, )

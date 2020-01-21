@@ -97,18 +97,26 @@ class VGG19(nn.Module):
     def __init__(self, requires_grad=False):
         super(VGG19, self).__init__()
         vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
-        self.slice1 = nn.Sequential()
-        self.slice2 = nn.Sequential()
-        self.slice3 = nn.Sequential()
-        self.slice4 = nn.Sequential()
-        self.slice5 = nn.Sequential()
-
         self.slice1_corr = nn.Sequential()
         self.slice2_corr = nn.Sequential()
         self.slice3_corr = nn.Sequential()
         self.slice4_corr = nn.Sequential()
         self.slice5_corr = nn.Sequential()
 
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
+
+        for x in range(9):
+            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(9, 14):
+            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(14, 23):
+            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(23, 32):
+            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
 
         for x in range(2):
             self.slice1.add_module(str(x), vgg_pretrained_features[x])
@@ -121,20 +129,12 @@ class VGG19(nn.Module):
         for x in range(21, 30):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
 
-        for x in range(9):
-            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(9, 14):
-            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(14, 23):
-            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(23, 32):
-            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
 
         if not requires_grad:
             for param in self.parameters():
                 param.requires_grad = False
 
-    def forward(self, X, corr_feature=False):
+    def forward(self, X, corr_feature=True):
         if corr_feature:
             h_relu1 = self.slice1_corr(X)
             h_relu2 = self.slice2_corr(h_relu1)
@@ -338,10 +338,14 @@ class VGGFeatureExtractor(nn.Module):
         self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
 
-    def forward(self, x, isValue=False):
+    def forward(self, x, isValue=False, is_ref=True):
 
-        if self.opt.ref_type == 'l' and x.size()[0] == 1:
-            x = x.expand(-1, 3, -1, -1)
+        if is_ref:
+            x = x[:, 0, :, :].unsqueeze(1).expand(-1, 3, -1, -1)
+        else:
+            if self.opt.ref_type == 'l' and x.size()[1] == 1:
+                x = x.expand(-1, 3, -1, -1)
+
 
         vgg_feature = self.vgg(x, corr_feature=True)
         vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
@@ -392,7 +396,7 @@ class NonLocalBlock(nn.Module):
             proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
 
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
-        conf_map = torch.max(corr_map, dim=2) # B x N_query
+        conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query)
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N
@@ -418,10 +422,10 @@ class CorrSubnet(nn.Module):
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
     def forward(self, tgt, ref):
-        tgt_feature = self.vgg_feature_extracter(tgt)
-        ref_feature = self.vgg_feature_extracter(ref)
+        tgt_feature = self.vgg_feature_extracter(tgt, is_ref=False)
+        ref_feature = self.vgg_feature_extracter(ref, is_ref=True)
 
-        ref_value = self.vgg_feature_extracter(ref, isValue=True)
+        ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
 
         attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
 
