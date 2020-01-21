@@ -6,4 +6,5 @@ results/
 *.pkl
 *.pyc
 *.pth
+debug_jdh.py
 .vscode/

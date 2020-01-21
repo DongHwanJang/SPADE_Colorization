@@ -78,7 +78,7 @@ class SPADEGenerator(BaseNetwork):
 
     def forward(self, tgt, ref, z=None):
         # Assume that input = (tgt, ref)  # changes to get each as input variable
-        corr_map, conf_map, tgt_value = self.corr_subnet(tgt, ref)
+        attention, conf_map, tgt_value = self.corr_subnet(tgt, ref)
 
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
@@ -119,7 +119,7 @@ class SPADEGenerator(BaseNetwork):
         x = self.conv_img(F.leaky_relu(x, 2e-1))
         x = F.tanh(x)
 
-        return x
+        return x, attention, conf_map
 
 
 class Pix2PixHDGenerator(BaseNetwork):
