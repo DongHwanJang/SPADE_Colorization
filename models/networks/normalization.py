@@ -97,6 +97,8 @@ class SPADE(nn.Module):
 
     def forward(self, x, seg_map, conf_map=None):
 
+        print("x.size() :", x.size())
+
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
 
