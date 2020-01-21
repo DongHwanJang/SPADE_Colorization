@@ -85,12 +85,16 @@ class GANLoss(nn.Module):
                 return input.mean()
 
     # simple wrapper around self.loss() method that handles batches
+    # input = list of list of tensors
     def __call__(self, input, target_is_real, for_discriminator=True):
         # computing loss is a bit complicated because |input| may not be
         # a tensor, but list of tensors in case of multiscale discriminator
         if isinstance(input, list):
             loss = 0
+            # iterate through each discriminator's output
             for pred_i in input:
+
+                # take the last feature map only, since that is the final output of the discriminator
                 if isinstance(pred_i, list):
                     pred_i = pred_i[-1]
                 loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
