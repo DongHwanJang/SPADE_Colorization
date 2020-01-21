@@ -9,6 +9,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 import cv2
+from util import util
 
 
 class Pix2PixTrainer():
@@ -126,16 +127,17 @@ class Pix2PixTrainer():
 
     def get_attention_visual(self, point, heatmap_format=False):
         pointwise_attention = self.attention[0][point[0]][point[1]].detach().cpu() # H_key x W_key
+        # pointwise_attention : [0, 1]
 
         pointwise_attention = F.interpolate(
             pointwise_attention, size=self.data["reference_LAB"].size()[2:4])
 
         reference_LAB = self.data["reference_LAB"]
+        reference_LAB=util.normalize(reference_LAB)
 
         if heatmap_format:
             heatmap = cv2.applyColorMap(np.uint8(255 * pointwise_attention), cv2.COLORMAP_JET)
             heatmap = np.float32(heatmap) / 255
-            # TODO ref_LAB denormalize to [0,1]
 
             atten_on_img = heatmap + np.float32(reference_LAB)
             atten_on_img += np.min(atten_on_img)
@@ -143,10 +145,10 @@ class Pix2PixTrainer():
             atten_on_img = torch.Tensor(atten_on_img)
 
         else:
+            atten_on_img = pointwise_attention + reference_LAB
+            atten_on_img = atten_on_img / torch.max(atten_on_img)
 
-
-        # TODO normalize heatmap
-
+        util.normalize(atten_on_img)
 
         return atten_on_img
 

@@ -126,6 +126,14 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
     return result
 
 
+def normalize(img):
+    if isinstance(img, torch.Tensor):
+        pass
+
+def dedenormalize(img):
+    if isinstance(img, torch.Tensor):
+        pass
+
 def save_image(image_numpy, image_path, create_dir=False):
     if create_dir:
         os.makedirs(os.path.dirname(image_path), exist_ok=True)
