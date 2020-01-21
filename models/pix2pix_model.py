@@ -209,9 +209,9 @@ class Pix2PixModel(torch.nn.Module):
         D_losses = {}
         with torch.no_grad():
             fake_AB, _, _, _ = self.generate_fake(target_L, reference_LAB)
-            fake_AB = fake_LA.detach()
+            fake_AB = fake_AB.detach()
             fake_AB.requires_grad_()
-            fake_LAB = torch.concat([target_L, fake_AB], dim=1)
+            fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
         pred_fake, pred_real = self.discriminate(
             target_L, fake_LAB, target_LAB)
@@ -238,7 +238,6 @@ class Pix2PixModel(torch.nn.Module):
 
         # G forward during training
         fake_image, attention, conf_map = self.netG(target_L, reference_LAB, z=z)
-
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 

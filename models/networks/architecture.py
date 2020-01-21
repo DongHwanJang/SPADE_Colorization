@@ -387,17 +387,18 @@ class NonLocalBlock(nn.Module):
         B, C_key, H_key, W_key = key.shape
         _, C_value, _, _ = value.shape
         B, C_query, H_query, W_query = query.shape
+
         proj_query = self.query_conv(query).view(B, -1, W_query * H_query).permute(0, 2, 1)  # B X CX(N) -> B x N x C
         proj_key = self.key_conv(key).view(B, -1, W_key * H_key)  # B X C x (W_key*H_key)
         if unit_mult:
-            proj_query = proj_query-torch.mean(proj_query, dim=1, keepdim=True)
-            proj_query = proj_query/torch.norm(proj_query, dim=2, keepdim=True)
+            proj_query = proj_query - torch.mean(proj_query, dim=1, keepdim=True)
+            proj_query = proj_query / torch.norm(proj_query, dim=2, keepdim=True)
             proj_key = proj_key - torch.mean(proj_key, dim=2, keepdim=True)
             proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
 
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
-        conf_map = conf_map.view(-1, H_query, W_query)
+        conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N
 
@@ -428,7 +429,6 @@ class CorrSubnet(nn.Module):
         ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
 
         attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
-
         return attention, conf_map, out
 
     def actvn(self, x):

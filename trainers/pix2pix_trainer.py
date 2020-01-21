@@ -65,8 +65,9 @@ class Pix2PixTrainer():
     def get_latest_generated(self):
         return self.generated
 
-    def get_latest_conf(self):
-        return self.conf_map.detach().cpu()
+    def get_latest_conf_map(self):
+        # return self.conf_map.detach().cpu()
+        return self.conf_map
 
     def get_latest_attention(self):
         self.attention = self.attention.detach().cpu()
@@ -82,7 +83,7 @@ class Pix2PixTrainer():
         attention_visuals = []
 
         for point in points:
-            attention_visuals.append(self.get_attention_visual(point))
+            attention_visuals.append(self.get_attention_visual(tuple(map(int, point))))
 
         return attention_visuals
 
@@ -121,7 +122,7 @@ class Pix2PixTrainer():
         pts_lt = []
 
         for i in range(num_pts):
-            pts_lt.append(np.random.randint(self.conf_map.size()[1]), np.random.randint(self.conf_map.size()[2]))
+            pts_lt.append((np.random.randint(self.conf_map.size()[1]), np.random.randint(self.conf_map.size()[2])))
 
         return pts_lt
 
