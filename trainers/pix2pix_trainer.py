@@ -8,6 +8,7 @@ from models.pix2pix_model import Pix2PixModel
 import numpy as np
 import torch.nn.functional as F
 import torch
+import cv2
 
 
 class Pix2PixTrainer():
@@ -123,18 +124,31 @@ class Pix2PixTrainer():
 
         return pts_lt
 
-    def get_attention_visual(self, point):
-        pointwise_attention = self.attention[0][point[0]][point[1]] # H_key x W_key
+    def get_attention_visual(self, point, heatmap_format=False):
+        pointwise_attention = self.attention[0][point[0]][point[1]].detach().cpu() # H_key x W_key
 
-        F.interpolate(pointwise_attention, size=(self.sh, self.sw))
+        pointwise_attention = F.interpolate(
+            pointwise_attention, size=self.data["reference_LAB"].size()[2:4])
 
         reference_LAB = self.data["reference_LAB"]
-        target_LAB = self.data["target_LAB"]
 
-        # TODO
+        if heatmap_format:
+            heatmap = cv2.applyColorMap(np.uint8(255 * pointwise_attention), cv2.COLORMAP_JET)
+            heatmap = np.float32(heatmap) / 255
+            # TODO ref_LAB denormalize to [0,1]
+
+            atten_on_img = heatmap + np.float32(reference_LAB)
+            atten_on_img += np.min(atten_on_img)
+            atten_on_img = atten_on_img / np.max(atten_on_img) # atten_on_img ~ [0, 1]
+            atten_on_img = torch.Tensor(atten_on_img)
+
+        else:
 
 
+        # TODO normalize heatmap
 
+
+        return atten_on_img
 
     def get_latest_image(self):
         pass
