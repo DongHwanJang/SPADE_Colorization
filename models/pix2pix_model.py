@@ -84,8 +84,9 @@ class Pix2PixModel(torch.nn.Module):
         #     return mu, logvar
         elif mode == 'inference':
             with torch.no_grad():
-                fake_image, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
-            return fake_image
+                fake_AB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
+                fake_LAB = torch.cat([target_L, fake_AB], dim=1)
+            return fake_LAB
         else:
             raise ValueError("|mode| is invalid")
 
@@ -164,15 +165,14 @@ class Pix2PixModel(torch.nn.Module):
 
 
         # if not using VAE, this is just a forward pass of G
-        fake_LAB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
+        fake_AB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
-        fake_LAB = torch.cat([target_L, fake_LAB[:, 1:, :, :]], dim=1)
+        fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
 
-        # We let discriminator compare fake_LAB and target_LAB. Is this right?
-        # Todo: distort target_LAB's AB so that discriminator doesn't draw connections between objects and colors
+        # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(target_L, fake_LAB, target_LAB)
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
@@ -208,9 +208,10 @@ class Pix2PixModel(torch.nn.Module):
     def compute_discriminator_loss(self, target_L, target_LAB, reference_LAB):
         D_losses = {}
         with torch.no_grad():
-            fake_LAB, _, _, _ = self.generate_fake(target_L, reference_LAB)
-            fake_LAB = fake_LAB.detach()
-            fake_LAB.requires_grad_()
+            fake_AB, _, _, _ = self.generate_fake(target_L, reference_LAB)
+            fake_AB = fake_LA.detach()
+            fake_AB.requires_grad_()
+            fake_LAB = torch.concat([target_L, fake_AB], dim=1)
 
         pred_fake, pred_real = self.discriminate(
             target_L, fake_LAB, target_LAB)
@@ -263,19 +264,25 @@ class Pix2PixModel(torch.nn.Module):
         return pred_fake, pred_real
 
     # Take the prediction of fake and real images from the combined batch
+    # pred is a list of list of feature maps
     def divide_pred(self, pred):
         # the prediction contains the intermediate outputs of multiscale GAN,
         # so it's usually a list
         if type(pred) == list:
             fake = []
             real = []
+
+            # iterate through each discriminator's output
             for p in pred:
+
+                # iterate through each feature map in the discriminator's output
                 fake.append([tensor[:tensor.size(0) // 2] for tensor in p])
                 real.append([tensor[tensor.size(0) // 2:] for tensor in p])
         else:
             fake = pred[:pred.size(0) // 2]
             real = pred[pred.size(0) // 2:]
 
+        # fake, real are list of list of tensors
         return fake, real
 
     def get_edges(self, t):
