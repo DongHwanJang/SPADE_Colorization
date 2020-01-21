@@ -62,8 +62,8 @@ for epoch in iter_counter.training_epochs():
         if True:
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('conf_map', trainer.get_latest_conf_map()),
-                                   ('attention_map', trainer.get_latest_attention()),
-                                   ('warped_img', trainer.get_warped_image()),
+                                   # ('attention_map', trainer.get_latest_attention()),  # FIXME
+                                   # ('warped_img', trainer.get_warped_image()),
                                    ('synthesized_image', trainer.get_latest_generated()),
                                    ('target_image', data_i['target_image']),
                                    ('reference_image', data_i['reference_image']),

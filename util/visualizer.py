@@ -51,19 +51,26 @@ class Visualizer():
         ## convert tensors to numpy arrays
         visuals = self.convert_visuals_to_numpy(visuals)
                 
-        if self.tf_log: # show images in tensorboard output
+        if self.tf_log:  # show images in tensorboard output
             img_summaries = []
             for label, image_numpy in visuals.items():
+
                 # Write the image to a string
                 try:
                     s = StringIO()
                 except:
                     s = BytesIO()
+
                 if len(image_numpy.shape) >= 4:
                     image_numpy = image_numpy[0]
                 if 'lab' in label.lower() or 'synth' in label.lower():
                     # convert LAB to RGB
                     image_numpy = lab_deloader(Image.fromarray(image_numpy.astype(np.uint8), mode='LAB'), np_output=True)
+
+                if len(image_numpy.shape) == 3 and image_numpy.shape[0] == 1:
+                    image_numpy = image_numpy.transpose((1, 2, 0))
+                    image_numpy = np.tile(image_numpy, (1, 1, 3))
+
                 scipy.misc.toimage(image_numpy).save(s, format="jpeg")
                 # Create an Image object
                 img_sum = self.tf.Summary.Image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])
@@ -146,6 +153,7 @@ class Visualizer():
                     t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
                 else:
                     t = util.tensor2im(t, tile=tile)
+
                 new_visuals[key] = t
         return new_visuals
 

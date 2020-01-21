@@ -237,7 +237,6 @@ class Pix2PixModel(torch.nn.Module):
 
         # G forward during training
         fake_image, attention, conf_map = self.netG(target_L, reference_LAB, z=z)
-
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 
