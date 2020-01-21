@@ -47,8 +47,8 @@ class Pix2PixTrainer():
         self.optimizer_G.step()
         self.g_losses = g_losses
         self.generated = generated
-        self.attention = attention
-        self.conf_map = conf_map
+        self.attention = attention.detach().cpu()
+        self.conf_map = conf_map.detach().cpu()
         self.data = data
 
     def run_discriminator_one_step(self, data):
@@ -69,7 +69,29 @@ class Pix2PixTrainer():
         # return self.conf_map.detach().cpu()
         return self.conf_map
 
+    def get_warped_ref_img(self):
+        ref_LAB = self.data["reference_LAB"][0] # 3xHxW
+        B, H_query, W_query, H_key, W_key = self.attention.size()
+
+        ref_LAB = F.interpolate(
+            ref_LAB.unsqueeze(0), size=(H_key, W_key)) # 1 x 3 x H_key x W_key
+        ref_LAB=ref_LAB.squeeze(0) # 3xH_keyxW_key
+        ref_LAB = ref_LAB.view(3, -1) # 3 x N_key
+
+        attention = self.attention[0].view(H_query, W_query, -1) # H_query x W_query x N_key
+        attention = attention.view(-1, H_key*W_key) # N_query x N_key
+        attention = attention.permute(1, 0) # N_key x N_query
+
+        warped_img = torch.mm(ref_LAB, attention).view(3, H_query, W_query) # 3 x N_query
+
+        return warped_img
+
+
     def get_latest_attention(self):
+        """
+        get attention[0]'s attentions for points satisfying certain conditions(grid,top,rand)
+        :return: (N, C, H, W) where N: the number of attention maps
+        """
         self.attention = self.attention.detach().cpu()
         self.conf_map = self.conf_map.detach().cpu()
 
@@ -83,9 +105,10 @@ class Pix2PixTrainer():
         attention_visuals = []
 
         for point in points:
-            attention_visuals.append(self.get_attention_visual(tuple(map(int, point))))
+            point = tuple(np.uint8(point))
+            attention_visuals.append(self.get_attention_visual(point))
 
-        return attention_visuals
+        return torch.stack(attention_visuals)
 
     def get_grid_points(self, n_partition = 4):
         _, H_tgt, W_tgt, _, _ = self.attention.size()
@@ -98,7 +121,7 @@ class Pix2PixTrainer():
         return pts_lt
 
     def get_top_conf_points(self, num_pts=3):
-        temp_tensor = self.conf_map[0].clone()
+        temp_tensor = self.conf_map[0][0].clone()
         min_value = torch.min(temp_tensor)
         H, W =temp_tensor.size()[0], temp_tensor.size()[1]
         window_sz_h = H // (num_pts+1)
@@ -108,13 +131,13 @@ class Pix2PixTrainer():
 
         for i in range(num_pts):
             pt = torch.argmax(temp_tensor)
-            x = pt%H
-            y = pt//H
+            x = np.uint8(pt%H)
+            y = np.uint8(pt//H)
             pts_lt.append((x,y))
 
             for j in range(np.max([0,x-window_sz_h//2]), np.min([H, x + window_sz_h//2])):
                 for k in range(np.max([0, y-window_sz_w//2]), np.min([W, y + window_sz_w//2])):
-                    temp_tensor[j][k]=min_value
+                    temp_tensor[k][j]=min_value # becareful for the indexing order
 
         return pts_lt
 
@@ -122,23 +145,28 @@ class Pix2PixTrainer():
         pts_lt = []
 
         for i in range(num_pts):
-            pts_lt.append((np.random.randint(self.conf_map.size()[1]), np.random.randint(self.conf_map.size()[2])))
+            pts_lt.append((np.random.randint(self.conf_map.size()[2]), np.random.randint(self.conf_map.size()[3])))
 
         return pts_lt
 
     def get_attention_visual(self, point, heatmap_format=False):
-        pointwise_attention = self.attention[0][point[0]][point[1]].detach().cpu() # H_key x W_key
-        # pointwise_attention : [0, 1]
+        # Watch out for indexing order (y first)
+        pointwise_attention = self.attention[0][point[1]][point[0]].detach().cpu() # H_key x W_key
 
-        pointwise_attention = F.interpolate(
-            pointwise_attention, size=self.data["reference_LAB"].size()[2:4])
+        # pointwise_attention : [0, 1]
+        pointwise_attention = pointwise_attention.unsqueeze(0).unsqueeze(0)
+
+        pointwise_attention = F.interpolate(pointwise_attention,
+                                            size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_keyxW_key
 
         reference_LAB = self.data["reference_LAB"]
-        reference_LAB=util.normalize(reference_LAB)
+        one_reference_LAB = util.denormalize(reference_LAB)[0] # CxHxW
 
         if heatmap_format:
-            heatmap = cv2.applyColorMap(np.uint8(255 * pointwise_attention), cv2.COLORMAP_JET)
-            heatmap = np.float32(heatmap) / 255
+            # TODO need to convert LAB to RGB
+            heatmap = cv2.applyColorMap(
+                np.uint8(255 * pointwise_attention[0][0]), cv2.COLORMAP_JET)
+            heatmap = np.float32(heatmap) / 255 # HxWx3  [0,1]
 
             atten_on_img = heatmap + np.float32(reference_LAB)
             atten_on_img += np.min(atten_on_img)
@@ -146,7 +174,7 @@ class Pix2PixTrainer():
             atten_on_img = torch.Tensor(atten_on_img)
 
         else:
-            atten_on_img = pointwise_attention + reference_LAB
+            atten_on_img = pointwise_attention[0].expand(3,-1,-1) + one_reference_LAB
             atten_on_img = atten_on_img / torch.max(atten_on_img)
 
         util.normalize(atten_on_img)

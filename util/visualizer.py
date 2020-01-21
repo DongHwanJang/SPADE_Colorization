@@ -152,6 +152,8 @@ class Visualizer():
                 if 'input_label' == key:
                     t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
                 else:
+                    # if Batch size info is included in t, use that
+                    tile = tile or (t.size()[0]>8 if len(t.size())==4 else False)
                     t = util.tensor2im(t, tile=tile)
 
                 new_visuals[key] = t
