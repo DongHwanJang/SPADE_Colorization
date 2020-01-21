@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 # import util.util as util
-from util.pil_loader import pil_loader
+from VGG19_classifier.pil_loader import pil_loader
 import os
 import numpy
 
