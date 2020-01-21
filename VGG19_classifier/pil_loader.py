@@ -18,7 +18,7 @@ def LAB_pil_loader(path):
     with open(path, 'rb') as f:
         with Image.open(f) as img:
             img = img.convert('RGB')
-            return np.array(ImageCms.applyTransform(img, rgb2lab_transform))
+            return ImageCms.applyTransform(img, rgb2lab_transform)
 
 def L_pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -28,4 +28,4 @@ def L_pil_loader(path):
             lab = ImageCms.applyTransform(img, rgb2lab_transform)
             L, _, _ = lab.split()
             print(L.size)
-            return np.array(L)
+            return L
