@@ -9,6 +9,13 @@ import time
 from . import util
 from . import html
 import scipy.misc
+import torch
+import torchvision.transforms as transforms
+from util.img_loader import lab_deloader
+import numpy as np
+
+from PIL import Image
+
 try:
     from StringIO import StringIO  # Python 2.7
 except ImportError:
@@ -54,6 +61,9 @@ class Visualizer():
                     s = BytesIO()
                 if len(image_numpy.shape) >= 4:
                     image_numpy = image_numpy[0]
+                if 'lab' in label.lower() or 'synth' in label.lower():
+                    # convert LAB to RGB
+                    image_numpy = lab_deloader(Image.fromarray(image_numpy.astype(np.uint8), mode='LAB'), np_output=True)
                 scipy.misc.toimage(image_numpy).save(s, format="jpeg")
                 # Create an Image object
                 img_sum = self.tf.Summary.Image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])
@@ -126,14 +136,18 @@ class Visualizer():
             log_file.write('%s\n' % message)
 
     def convert_visuals_to_numpy(self, visuals):
+        new_visuals = dict()
         for key, t in visuals.items():
-            tile = self.opt.batchSize > 8
-            if 'input_label' == key:
-                t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
+            if not isinstance(t, torch.Tensor):
+                pass
             else:
-                t = util.tensor2im(t, tile=tile)
-            visuals[key] = t
-        return visuals
+                tile = self.opt.batchSize > 8
+                if 'input_label' == key:
+                    t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
+                else:
+                    t = util.tensor2im(t, tile=tile)
+                new_visuals[key] = t
+        return new_visuals
 
     # save image to the disk
     def save_images(self, webpage, visuals, image_path):        

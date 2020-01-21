@@ -82,7 +82,11 @@ class NLayerDiscriminator(BaseNetwork):
         kw = 4
         padw = int(np.ceil((kw - 1.0) / 2))
         nf = opt.ndf
-        input_nc = self.compute_D_input_nc(opt)
+        # input_nc = self.compute_D_input_nc(opt)
+        # An original SPADE discriminator calculates input_channel # with label_nc, wheter using instance, ...
+        # We just concat L and LAB image in channel_dim(=1). So, it would be 4 (LAB(3) + L(1)).
+        # TODO: modify it with opt
+        input_nc = 4
 
         norm_layer = get_nonspade_norm_layer(opt, opt.norm_D)
         sequence = [[nn.Conv2d(input_nc, nf, kernel_size=kw, stride=2, padding=padw),

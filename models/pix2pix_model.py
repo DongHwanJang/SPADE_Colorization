@@ -33,7 +33,7 @@ class Pix2PixModel(torch.nn.Module):
                 # self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
                 # set vgg=None because the version for vgg in perceptual loss may be different
                 # with that in using corr_feat
-                self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
+                self.criterionVGG = networks.VGGLoss(self.opt, self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
@@ -77,8 +77,7 @@ class Pix2PixModel(torch.nn.Module):
                 target_L, target_LAB, reference_LAB, is_reconstructing=data["is_reconstructing"])
             return g_loss, generated, attention, conf_map
         elif mode == 'discriminator':
-            d_loss = self.compute_discriminator_loss(
-                target_LAB, reference_LAB)
+            d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
             return d_loss
         # elif mode == 'encode_only':
         #     z, mu, logvar = self.encode_z(real_image)
@@ -165,7 +164,9 @@ class Pix2PixModel(torch.nn.Module):
 
 
         # if not using VAE, this is just a forward pass of G
-        fake_LAB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB, )
+        fake_LAB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
+        # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
+        fake_LAB = torch.cat([target_L, fake_LAB[:, 1:, :, :]], dim=1)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
@@ -194,7 +195,7 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['VGG'] = self.criterionVGG(fake_LAB, target_LAB) * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss(fake_LAB)
+            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)

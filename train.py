@@ -51,19 +51,25 @@ for epoch in iter_counter.training_epochs():
         trainer.run_discriminator_one_step(data_i)
 
         # Visualizations
-        if iter_counter.needs_printing():
+        # if iter_counter.needs_printing():
+        if True:
             losses = trainer.get_latest_losses()
             visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
                                             losses, iter_counter.time_per_iter)
             visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
-        if iter_counter.needs_displaying():
+        # if iter_counter.needs_displaying():
+        if True:
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('conf_map', trainer.get_latest_conf_map()),
                                    ('attention_map', trainer.get_latest_attention()),
                                    ('warped_img', trainer.get_warped_image()),
                                    ('synthesized_image', trainer.get_latest_generated()),
-                                   ('real_image', data_i['image'])])
+                                   ('target_image', data_i['target_image']),
+                                   ('reference_image', data_i['reference_image']),
+                                   ('target_LAB', data_i['target_LAB']),
+                                   ('reference_LAB', data_i['reference_LAB']),
+                                   ])
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():

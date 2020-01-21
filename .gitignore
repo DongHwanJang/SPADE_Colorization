@@ -9,3 +9,6 @@ results/
 debug_jdh.py
 test_tensor.py
 .vscode/
+venv/
+*.png
+*.jpeg
