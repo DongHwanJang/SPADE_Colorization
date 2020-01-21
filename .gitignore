@@ -7,3 +7,4 @@ results/
 *.pyc
 *.pth
 debug_jdh.py
+.vscode/
