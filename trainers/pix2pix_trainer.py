@@ -96,11 +96,8 @@ class Pix2PixTrainer():
     def get_latest_attention(self):
         """
         get attention[0]'s attentions for points satisfying certain conditions(grid,top,rand)
-        :return: (N, C, H, W) where N: the number of attention maps
+        :return: (N, C, H, W) where N: the number of attention maps (NOT the batch size)
         """
-        self.attention = self.attention.detach().cpu()
-        self.conf_map = self.conf_map.detach().cpu()
-
         points = []
 
         # attention => query x key
@@ -143,7 +140,7 @@ class Pix2PixTrainer():
 
             for j in range(np.max([0,x-window_sz_h//2]), np.min([H, x + window_sz_h//2])):
                 for k in range(np.max([0, y-window_sz_w//2]), np.min([W, y + window_sz_w//2])):
-                    temp_tensor[k][j]=min_value # becareful for the indexing order
+                    temp_tensor[k][j]=min_value # be careful for the indexing order
 
         return pts_lt
 
@@ -156,14 +153,14 @@ class Pix2PixTrainer():
         return pts_lt
 
     def get_attention_visual(self, point, heatmap_format=False):
-        # Watch out for indexing order (y first)
+        # Watch out for the indexing order (y first)
         pointwise_attention = self.attention[0][point[1]][point[0]].detach().cpu() # H_key x W_key
 
         # pointwise_attention : [0, 1]
         pointwise_attention = pointwise_attention.unsqueeze(0).unsqueeze(0)
 
         pointwise_attention = F.interpolate(pointwise_attention,
-                                            size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_keyxW_key
+                                            size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_refxW_ref
 
         reference_LAB = self.data["reference_LAB"].clone()
         one_reference_LAB = util.denormalize(reference_LAB)[0]  # CxHxW
