@@ -72,8 +72,8 @@ class Pix2PixTrainer():
     def get_warped_ref_img(self):
         ref_LAB = self.data["reference_LAB"][0].clone()  # 3xHxW
         target_LAB = self.data["target_LAB"][0].clone() # 3xHxW
-        _, ref_AB = self.pix2pix_model.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1xCxHxW
-        target_L, _ = self.pix2pix_model.parse_LAB(target_LAB)
+        _, ref_AB = self.pix2pix_model_on_one_gpu.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1xCxHxW
+        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB)
 
 
         B, H_query, W_query, H_key, W_key = self.attention.size()

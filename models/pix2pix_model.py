@@ -56,7 +56,7 @@ class Pix2PixModel(torch.nn.Module):
         elif len(image_LAB.size()) == 3:
             # It would be a tensor whose batch size = 1.
             # Then, unsqueeze to be 4D tensor?
-            self.parse_LAB(image_LAB.unsqueeze(0))
+            return self.parse_LAB(image_LAB.unsqueeze(0))
 
         else:
             raise ("Pass 3D or 4D tensor")
