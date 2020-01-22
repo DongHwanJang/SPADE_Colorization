@@ -70,8 +70,8 @@ class Pix2PixTrainer():
         return self.conf_map
 
     def get_warped_ref_img(self):
-        ref_LAB = self.data["reference_LAB"][0] # 3xHxW
-        target_LAB = self.data["target_LAB"][0] # 3xHxW
+        ref_LAB = self.data["reference_LAB"][0].clone()  # 3xHxW
+        target_LAB = self.data["target_LAB"][0].clone() # 3xHxW
         _, ref_AB = self.pix2pix_model.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1xCxHxW
         target_L, _ = self.pix2pix_model.parse_LAB(target_LAB)
 
@@ -164,8 +164,8 @@ class Pix2PixTrainer():
         pointwise_attention = F.interpolate(pointwise_attention,
                                             size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_keyxW_key
 
-        reference_LAB = self.data["reference_LAB"]
-        one_reference_LAB = util.denormalize(reference_LAB)[0] # CxHxW
+        reference_LAB = self.data["reference_LAB"].clone()
+        one_reference_LAB = util.denormalize(reference_LAB)[0]  # CxHxW
 
         if heatmap_format:
             # TODO need to convert LAB to RGB
