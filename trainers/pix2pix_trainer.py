@@ -72,8 +72,8 @@ class Pix2PixTrainer():
     def get_warped_ref_img(self):
         ref_LAB = self.data["reference_LAB"][0].clone()  # 3xHxW
         target_LAB = self.data["target_LAB"][0].clone() # 3xHxW
-        _, ref_AB = self.pix2pix_model_on_one_gpu.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1xCxHxW
-        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB)
+        _, ref_AB = self.pix2pix_model_on_one_gpu.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1x2xHxW
+        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB) # 1x1xHxW
 
 
         B, H_query, W_query, H_key, W_key = self.attention.size()
@@ -87,9 +87,10 @@ class Pix2PixTrainer():
         attention = attention.view(-1, H_key*W_key) # N_query x N_key
         attention = attention.permute(1, 0) # N_key x N_query
 
-        warped_AB = torch.mm(ref_AB, attention).view(3, H_query, W_query) # 2 x N_query
+        warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
+        warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
 
-        return torch.cat([target_L, warped_AB], dim=0)
+        return torch.cat([target_L, warped_AB], dim=1).squeeze(0)
 
 
     def get_latest_attention(self):
