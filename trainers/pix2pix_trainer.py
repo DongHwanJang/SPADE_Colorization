@@ -109,9 +109,29 @@ class Pix2PixTrainer():
 
         for point in points:
             point = tuple(np.uint8(point))
+            attention_visuals.append(self.get_point_img_on_target(point))
             attention_visuals.append(self.get_attention_visual(point))
 
         return torch.stack(attention_visuals)
+
+    def get_point_img_on_target(self, point, marker_size=9):
+        target_LAB = util.denormalize(self.data['target_LAB'].clone().detach())
+        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB)
+        target_B = torch.zeros_like(target_L)+0.5 # TODO need to figure out which one is neutral value between 0 and 0.5
+        target_A = torch.zeros_like(target_L)+0.5
+
+        x, y = point
+        H = target_LAB.size()[-2]
+        W = target_LAB.size()[-1]
+        conf_H = self.conf_map.size()[-2]
+        scale = H/conf_H
+
+        for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
+            for k in range(np.max([0, int(y*scale) - marker_size // 2]), np.min([H, int(y*scale) + marker_size // 2])):
+                target_A[:,:,j,k] = 0  # be careful for the indexing order # assign max A value
+
+        return torch.cat([target_L, target_A, target_B], dim=1).squeeze(0)
+
 
     def get_grid_points(self, n_partition = 4):
         _, H_tgt, W_tgt, _, _ = self.attention.size()
@@ -134,12 +154,12 @@ class Pix2PixTrainer():
 
         for i in range(num_pts):
             pt = torch.argmax(temp_tensor)
-            x = np.uint8(pt%H)
-            y = np.uint8(pt//H)
-            pts_lt.append((x,y))
+            y = np.uint8(pt%H)
+            x = np.uint8(pt//H)
+            pts_lt.append((x, y))
 
-            for j in range(np.max([0,x-window_sz_h//2]), np.min([H, x + window_sz_h//2])):
-                for k in range(np.max([0, y-window_sz_w//2]), np.min([W, y + window_sz_w//2])):
+            for j in range(np.max([0,y-window_sz_h//2]), np.min([H, y + window_sz_h//2])):
+                for k in range(np.max([0, x-window_sz_w//2]), np.min([W, x + window_sz_w//2])):
                     temp_tensor[k][j]=min_value # be careful for the indexing order
 
         return pts_lt
