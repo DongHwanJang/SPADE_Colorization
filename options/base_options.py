@@ -41,7 +41,7 @@ class BaseOptions():
         parser.add_argument('--top_n_reference', type=int, default=1, help='chose reference from top-n nearest')
 
         # for setting inputs
-        parser.add_argument('--dataroot', type=str, default='./datasets/cityscapes/')
+        parser.add_argument('--dataroot', type=str, default='.')
         parser.add_argument('--dataset_mode', type=str, default='imagenet')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data argumentation')
@@ -174,6 +174,7 @@ class BaseOptions():
             if id >= 0:
                 opt.gpu_ids.append(id)
         if len(opt.gpu_ids) > 0:
+            print(opt.gpu_ids)
             torch.cuda.set_device(opt.gpu_ids[0])
 
         assert len(opt.gpu_ids) == 0 or opt.batchSize % len(opt.gpu_ids) == 0, \

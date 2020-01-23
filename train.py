@@ -12,7 +12,6 @@ from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 # parse options
 opt = TrainOptions().parse()

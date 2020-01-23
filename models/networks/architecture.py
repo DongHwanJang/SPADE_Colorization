@@ -382,19 +382,29 @@ class NonLocalBlock(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
+    """
+    key = ref_feature
+    query = tgt_feature
+    value = ref_value (currently equal to ref_feature)
+    """
     def forward(self, key, query, value, unit_mult=True):
         # B: mini batches, C: channels, W_key: width, H_key: height
         B, C_key, H_key, W_key = key.shape
         _, C_value, _, _ = value.shape
         B, C_query, H_query, W_query = query.shape
 
-        proj_query = self.query_conv(query).view(B, -1, W_query * H_query).permute(0, 2, 1)  # B X CX(N) -> B x N x C
-        proj_key = self.key_conv(key).view(B, -1, W_key * H_key)  # B X C x (W_key*H_key)
+        # B x C x H x W -> B x C x (H*W) -> B x N x C
+        proj_query = self.query_conv(query).view(B, -1, W_query * H_query).permute(0, 2, 1)
+
+        # B x C x H x W -> B X C x (W_key*H_key)
+        proj_key = self.key_conv(key).view(B, -1, W_key * H_key)
+
         if unit_mult:
             proj_query = proj_query - torch.mean(proj_query, dim=1, keepdim=True)
-            proj_query = proj_query / torch.norm(proj_query, dim=2, keepdim=True)
+            # F.normalize is safer because it handles the case when norm is closer to zero
+            proj_query = F.normalize(proj_query, dim=2)
             proj_key = proj_key - torch.mean(proj_key, dim=2, keepdim=True)
-            proj_key = proj_key / torch.norm(proj_key, dim=1, keepdim=True)
+            proj_key = F.normalize(proj_key, dim=1)
 
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
