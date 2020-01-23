@@ -15,6 +15,7 @@ import dill as pickle
 import util.coco
 import subprocess
 from util.img_loader import lab_deloader
+from torchvision.transforms import functional as F
 
 
 def save_obj(obj, name):
@@ -128,6 +129,15 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
     result = label_numpy.astype(imtype)
     return result
 
+
+def normalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
+    return F.normalize(img, mean=mean, std=std)
+
+def denormalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
+    img[:, 0, :, :] = img[:, 0, :, :] * std[0] + mean[0]
+    img[:, 1, :, :] = img[:, 1, :, :] * std[1] + mean[1]
+    img[:, 2, :, :] = img[:, 2, :, :] * std[2] + mean[2]
+    return img
 
 def save_image(image_numpy, image_path, create_dir=False):
     if create_dir:
