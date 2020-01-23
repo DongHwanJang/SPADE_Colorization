@@ -35,6 +35,7 @@ visualizer = Visualizer(opt)
 for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
+        print("iter_counter.record_one_iteration()")
         iter_counter.record_one_iteration()
 
         # to run reconstruction loss, set reference_LAB = target_LAB
@@ -44,9 +45,11 @@ for epoch in iter_counter.training_epochs():
 
         # Training
         # train generator
+        print("trainer.run_generator_one_step(data_i)")
         if i % opt.D_steps_per_G == 0:
             trainer.run_generator_one_step(data_i)
 
+        print("trainer.run_discriminator_one_step(data_i)")
         # train discriminator
         trainer.run_discriminator_one_step(data_i)
 

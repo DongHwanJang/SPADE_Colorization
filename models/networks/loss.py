@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.networks.architecture import VGG19, Vgg19BN
+from models.networks.architecture import VGG19, Vgg19BN, VGG19BN_LAB
 from util.WLSFilter import wls_filter
 import util.util as util
 
@@ -116,8 +116,10 @@ class VGGLoss(nn.Module):
         # elif opt.ref_type == 'l' or opt.ref_type == 'l':
         #     self.vgg = Vgg19BN_LAB_Trained().cuda()
         else:
-            self.vgg = Vgg19BN().cuda().eval()
-            self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
+            checkpoint_dir = "models/networks/checkpoint.pth.tar"
+            self.vgg = VGG19BN_LAB(torch.load(checkpoint_dir)["state_dict"]).cuda()
+            # self.vgg = Vgg19BN().cuda().eval()
+            # self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 

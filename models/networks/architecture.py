@@ -10,6 +10,8 @@ import torchvision
 import torch.nn.utils.spectral_norm as spectral_norm
 from models.networks.normalization import SPADE
 import util.util as util
+import numpy as np
+import PIL.Image as Image
 
 
 # ResNet block that uses SPADE.
@@ -289,6 +291,71 @@ class Vgg19BN(nn.Module):
         return features
 
 
+class VGG19BN_LAB(nn.Module):
+    def __init__(self, checkpoint, requires_grad=False):
+        super(VGG19BN_LAB, self).__init__()
+        vgg_pretrained = torchvision.models.vgg19_bn(pretrained=False)
+        vgg_pretrained.load_state_dict(checkpoint)
+
+        vgg_pretrained_features = vgg_pretrained.features
+
+        self.slice1_corr = nn.Sequential()
+        self.slice2_corr = nn.Sequential()
+        self.slice3_corr = nn.Sequential()
+        self.slice4_corr = nn.Sequential()
+        self.slice5_corr = nn.Sequential()
+
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
+
+        for x in range(13):
+            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(13, 20):
+            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(20, 33):
+            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(33, 46):
+            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
+
+        for x in range(3):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(3, 10):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(10, 17):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(17, 30):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(30, 43):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+
+        # if not requires_grad:
+        #     for param in self.parameters():
+        #         param.requires_grad = False
+
+    def forward(self, X, corr_feature=True):
+        if corr_feature:
+            h_relu1 = self.slice1_corr(X)
+            h_relu2 = self.slice2_corr(h_relu1)
+            h_relu3 = self.slice3_corr(h_relu2)
+            h_relu4 = self.slice4_corr(h_relu3)
+
+            out = [h_relu1, h_relu2, h_relu3, h_relu4]
+
+        else:
+            h_relu1 = self.slice1(X)
+            h_relu2 = self.slice2(h_relu1)
+            h_relu3 = self.slice3(h_relu2)
+            h_relu4 = self.slice4(h_relu3)
+            h_relu5 = self.slice5(h_relu4)
+
+            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+
+        return out
+
+
 class VGGFeatureExtractor(nn.Module):
     def __init__(self, opt):
         super(VGGFeatureExtractor, self).__init__()
@@ -296,8 +363,11 @@ class VGGFeatureExtractor(nn.Module):
         # create vgg Model
         self.opt = opt
         if self.opt.ref_type == 'l' or self.opt.ref_type == 'ab' or self.opt.ref_type == 'lab':
-            self.vgg = Vgg19BN().cuda().eval()
-            self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
+            checkpoint_dir = "models/networks/checkpoint.pth.tar"
+            self.vgg = VGG19BN_LAB(torch.load(checkpoint_dir)["state_dict"]).cuda()
+
+            # self.vgg = Vgg19BN().cuda().eval()
+            # self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
         else:
             self.vgg = VGG19().cuda()
 
@@ -399,6 +469,14 @@ class NonLocalBlock(nn.Module):
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
+
+        conf_argmax = torch.histc(torch.max(corr_map, dim=2)[1],
+                                  bins=W_query * H_query,
+                                  min=0,
+                                  max=W_query * H_query - 1).cpu().numpy()
+        index = [(x, y) for x, y in zip(list(range(W_query * H_query)), conf_argmax)]
+        print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
+
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
 
