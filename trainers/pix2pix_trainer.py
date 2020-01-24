@@ -67,11 +67,11 @@ class Pix2PixTrainer():
 
     def get_latest_conf_map(self):
         # return self.conf_map.detach().cpu()
-        return self.conf_map
+        return self.conf_map.clone().detach().expand(-1, 3, -1, -1)
 
-    def get_warped_ref_img(self):
-        ref_LAB = self.data["reference_LAB"][0].clone()  # 3xHxW
-        target_LAB = self.data["target_LAB"][0].clone() # 3xHxW
+    def get_latest_warped_ref_img(self):
+        ref_LAB = self.data["reference_LAB"][0].clone().detach()  # 3xHxW
+        target_LAB = self.data["target_LAB"][0].clone().detach() # 3xHxW
         _, ref_AB = self.pix2pix_model_on_one_gpu.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1x2xHxW
         target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB) # 1x1xHxW
 
@@ -90,7 +90,7 @@ class Pix2PixTrainer():
         warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
         warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
 
-        return torch.cat([target_L, warped_AB], dim=1).squeeze(0)
+        return torch.cat([target_L, warped_AB], dim=1)
 
 
     def get_latest_attention(self):
@@ -109,9 +109,29 @@ class Pix2PixTrainer():
 
         for point in points:
             point = tuple(np.uint8(point))
+            attention_visuals.append(self.get_point_img_on_target(point))
             attention_visuals.append(self.get_attention_visual(point))
 
         return torch.stack(attention_visuals)
+
+    def get_point_img_on_target(self, point, marker_size=9):
+        target_LAB = util.denormalize(self.data['target_LAB'].clone().detach())
+        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB)
+        target_B = torch.zeros_like(target_L)+0.5 # TODO need to figure out which one is neutral value between 0 and 0.5
+        target_A = torch.zeros_like(target_L)+0.5
+
+        x, y = point
+        H = target_LAB.size()[-2]
+        W = target_LAB.size()[-1]
+        conf_H = self.conf_map.size()[-2]
+        scale = H/conf_H
+
+        for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
+            for k in range(np.max([0, int(y*scale) - marker_size // 2]), np.min([H, int(y*scale) + marker_size // 2])):
+                target_A[:,:,j,k] = 0  # be careful for the indexing order # assign max A value
+
+        return torch.cat([target_L, target_A, target_B], dim=1).squeeze(0)
+
 
     def get_grid_points(self, n_partition = 4):
         _, H_tgt, W_tgt, _, _ = self.attention.size()
@@ -124,7 +144,7 @@ class Pix2PixTrainer():
         return pts_lt
 
     def get_top_conf_points(self, num_pts=3):
-        temp_tensor = self.conf_map[0][0].clone()
+        temp_tensor = self.conf_map[0][0].clone().detach()
         min_value = torch.min(temp_tensor)
         H, W =temp_tensor.size()[0], temp_tensor.size()[1]
         window_sz_h = H // (num_pts+1)
@@ -134,12 +154,12 @@ class Pix2PixTrainer():
 
         for i in range(num_pts):
             pt = torch.argmax(temp_tensor)
-            x = np.uint8(pt%H)
-            y = np.uint8(pt//H)
-            pts_lt.append((x,y))
+            y = np.uint8(pt%H)
+            x = np.uint8(pt//H)
+            pts_lt.append((x, y))
 
-            for j in range(np.max([0,x-window_sz_h//2]), np.min([H, x + window_sz_h//2])):
-                for k in range(np.max([0, y-window_sz_w//2]), np.min([W, y + window_sz_w//2])):
+            for j in range(np.max([0,y-window_sz_h//2]), np.min([H, y + window_sz_h//2])):
+                for k in range(np.max([0, x-window_sz_w//2]), np.min([W, x + window_sz_w//2])):
                     temp_tensor[k][j]=min_value # be careful for the indexing order
 
         return pts_lt
@@ -152,7 +172,7 @@ class Pix2PixTrainer():
 
         return pts_lt
 
-    def get_attention_visual(self, point, heatmap_format=False):
+    def get_attention_visual(self, point, overlay=False, heatmap_format=False):
         # Watch out for the indexing order (y first)
         pointwise_attention = self.attention[0][point[1]][point[0]].detach().cpu() # H_key x W_key
 
@@ -162,25 +182,32 @@ class Pix2PixTrainer():
         pointwise_attention = F.interpolate(pointwise_attention,
                                             size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_refxW_ref
 
-        reference_LAB = self.data["reference_LAB"].clone()
-        one_reference_LAB = util.denormalize(reference_LAB)[0]  # CxHxW
+        reference_LAB = self.data["reference_LAB"].clone().detach()
+        one_reference_LAB = util.denormalize(reference_LAB)[0]  # CxHxW 0~1
 
-        if heatmap_format:
-            # TODO need to convert LAB to RGB
-            heatmap = cv2.applyColorMap(
-                np.uint8(255 * pointwise_attention[0][0]), cv2.COLORMAP_JET)
-            heatmap = np.float32(heatmap) / 255 # HxWx3  [0,1]
+        if overlay:
+            if heatmap_format:
+                # TODO need to convert LAB to RGB
+                heatmap = cv2.applyColorMap(
+                    np.uint8(255 * pointwise_attention[0][0]), cv2.COLORMAP_JET)
+                heatmap = np.float32(heatmap) / 255 # HxWx3  [0,1]
 
-            atten_on_img = heatmap + np.float32(reference_LAB)
-            atten_on_img += np.min(atten_on_img)
-            atten_on_img = atten_on_img / np.max(atten_on_img) # atten_on_img ~ [0, 1]
-            atten_on_img = torch.Tensor(atten_on_img)
+                atten_on_img = heatmap + np.float32(reference_LAB)
+                atten_on_img += np.min(atten_on_img)
+                atten_on_img = atten_on_img / np.max(atten_on_img) # atten_on_img ~ [0, 1]
+                atten_on_img = torch.Tensor(atten_on_img)
 
+            else:
+                atten_on_img = pointwise_attention[0].expand(3,-1,-1) + one_reference_LAB
+                atten_on_img = atten_on_img / torch.max(atten_on_img)
         else:
-            atten_on_img = pointwise_attention[0].expand(3,-1,-1) + one_reference_LAB
-            atten_on_img = atten_on_img / torch.max(atten_on_img)
+            if heatmap_format:
+                #FIXME
+                pass
+            else:
+                atten_on_img = pointwise_attention[0].expand(3,-1,-1)
 
-        util.normalize(atten_on_img)
+        # util.normalize(atten_on_img)
 
         return atten_on_img
 
