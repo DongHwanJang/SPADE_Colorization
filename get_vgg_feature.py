@@ -9,8 +9,6 @@ from util.pca import pca
 import pickle
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 class Scale(nn.Module):
     def __init__(self, channels):
         super(Scale, self).__init__()

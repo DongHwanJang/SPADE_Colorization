@@ -130,6 +130,12 @@ class Pix2PixModel(torch.nn.Module):
             if opt.use_vae:
                 netE = util.load_network(netE, 'E', opt.which_epoch, opt)
 
+            if not opt.use_pretrained_ref_feature_extractor:
+                util.load_network(None, 'VGG19_ref', opt.which_epoch, opt)
+
+            if not opt.use_pretrained_target_feature_extractor:
+                util.load_network(None, 'VGG19_target', opt.which_epoch, opt)
+
         return netG, netD, netE
 
     # preprocess the input, such as moving the tensors to GPUs and

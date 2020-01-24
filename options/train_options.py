@@ -52,5 +52,15 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--netD', type=str, default='multiscale', help='(n_layers|multiscale|image|sagan)')
         parser.add_argument('--lambda_kld', type=float, default=0.05)
         parser.add_argument('--reconstruction_period', type=int, default=2)
+
+        # for VGG19 feature extractor
+        parser.add_argument('--freeze_ref_feature_extractor', action='store_true', default=True, help="freeze feature extractor for ref")
+        parser.add_argument('--use_pretrained_ref_feature_extractor', default=True, action='store_true',
+                            help="for ref feature extractor, download pretrainied weight from pytorch and use it as initial weight")
+        parser.add_argument('--freeze_target_feature_extractor', default=False, action='store_true',
+                            help="freeze feature extractor for target")
+        parser.add_argument('--use_pretrained_target_feature_extractor', default=True, action='store_true',
+                            help="for target feature extractor, download pretrainied weight from pytorch and use it as initial weight")
+
         self.isTrain = True
         return parser

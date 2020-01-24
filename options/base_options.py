@@ -12,6 +12,7 @@ import models
 import data
 import pickle
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 class BaseOptions():
     def __init__(self):

@@ -232,22 +232,58 @@ def find_class_in_module(target_cls_name, module):
 
     return cls
 
+def is_proper_label(label):
+    if label not in ["VGG19_ref", "VGG19_target", "G", "D", "E"]:
+        raise ValueError("'label' has to be one of 'VGG19_RGB', 'VGG19_L', 'G', 'D', 'E'")
+    return True
 
 def save_network(net, label, epoch, opt):
+    is_proper_label(label)
+
     save_filename = '%s_net_%s.pth' % (epoch, label)
     save_path = os.path.join(opt.checkpoints_dir, opt.name, save_filename)
-    torch.save(net.cpu().state_dict(), save_path)
+
+    if "VGG19" in label:
+        torch.save(net.cpu(), save_path)
+
+    else:
+        # we don't want to save the weights of ref & target VGG19 because they can't be loaded
+        # we save them separately with their layer information
+        if label == "G":
+            state_dict = net.cpu().state_dict(), save_path
+
+            for key in state_dict.keys():
+                if "ref_feature_extractor" in key:
+                    state_dict.pop(key)
+                if "target_feature_extractor" in key:
+                    state_dict.pop(key)
+
+        else:
+            state_dict = net.cpu().state_dict()
+
+        torch.save(state_dict, save_path)
+
     if len(opt.gpu_ids) and torch.cuda.is_available():
         net.cuda()
 
-
 def load_network(net, label, epoch, opt):
+    is_proper_label(label)
+
     save_filename = '%s_net_%s.pth' % (epoch, label)
     save_dir = os.path.join(opt.checkpoints_dir, opt.name)
     save_path = os.path.join(save_dir, save_filename)
     weights = torch.load(save_path)
-    net.load_state_dict(weights)
-    return net
+
+    # for VGG19, we don't initialize the network
+    if label == "VGG19_ref":
+        opt.ref_feature_extractor_state_dict = wegiths
+
+    if label == "VGG19_target":
+        opt.target_feature_extractor_state_dict = wegiths
+
+    else:
+        net.load_state_dict(weights)
+        return net
 
 
 ###############################################################################
