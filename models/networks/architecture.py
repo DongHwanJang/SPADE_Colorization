@@ -362,14 +362,14 @@ class VGGFeatureExtractor(nn.Module):
 
         # create vgg Model
         self.opt = opt
-        if self.opt.ref_type == 'lab':
+        if self.opt.ref_type=="lab" or self.opt.ref_type=="LAB":
             checkpoint_dir = "models/networks/checkpoint.pth.tar"
             self.vgg = VGG19BN_LAB(torch.load(checkpoint_dir)["state_dict"]).cuda()
 
-        if self.opt.ref_type == 'l':
+        if self.opt.ref_type == 'l' or self.opt.ref_type == "L":
             raise ValueError("VGG19 is not pretrained on L yet!")
 
-        else:
+        elif self.opt.ref_type not in ["lab", "LAB", "l", "L"]:
             raise ValueError("Proper value for opt.ref_type is 'L' or 'LAB'")
 
         # create conv layers
