@@ -16,6 +16,9 @@ import os
 # parse options
 opt = TrainOptions().parse()
 
+if opt.continue_train:
+    opt, current_epoch, optimizer_state_dict = continue_training(opt)
+
 # print options to help debugging
 print(' '.join(sys.argv))
 

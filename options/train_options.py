@@ -62,5 +62,10 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_pretrained_target_feature_extractor', default=True, action='store_true',
                             help="for target feature extractor, download pretrainied weight from pytorch and use it as initial weight")
 
+        if parser.continue_train:
+            print("'continue_train' option is turned on.\n"
+                  "In this case, all options except for 'checkpoints_dir' and 'name' are going to be overwritten\n"
+                  "by previously saved option")
+
         self.isTrain = True
         return parser

@@ -266,6 +266,36 @@ def save_network(net, label, epoch, opt):
     if len(opt.gpu_ids) and torch.cuda.is_available():
         net.cuda()
 
+# save training details that are not saved with the model
+def save_training_details(optimizer, opt, current_epoch):
+    save_filename = 'train.pth'
+    save_dir = os.path.join(opt.checkpoints_dir, opt.name)
+    save_path = os.path.join(save_dir, save_filename)
+
+    new_opt = {}
+    for key in opt.keys():
+        if key != "ref_feature_extractor_state_dict" and key != "target_feature_extractor_state_dict":
+            new_opt[key] = opt[key]
+
+    state_dict = {
+        # epoch starting from 0 index
+        "resume_epoch": current_epoch + 1,
+        "optimizer": optimizer.state_dict(),
+        "opt": opt
+    }
+
+    torch.save(state_dict, save_path)
+
+def continue_training(opt):
+    save_filename = 'train.pth'
+    save_dir = os.path.join(opt.checkpoints_dir, opt.name)
+    save_path = os.path.join(save_dir, save_filename)
+
+    train_dict = torch.load(save_path)
+    opt = train_dict["opt"]
+    optimizer_state_dict  = load_state_dict(train_dict["optimizer"])
+    return opt, train_dict["current_epoch"], optimizer_state_dict
+
 def load_network(net, label, epoch, opt):
     is_proper_label(label)
 
