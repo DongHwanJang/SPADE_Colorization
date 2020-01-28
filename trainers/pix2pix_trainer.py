@@ -67,7 +67,7 @@ class Pix2PixTrainer():
 
     def get_latest_conf_map(self):
         # return self.conf_map.detach().cpu()
-        return self.conf_map.clone().detach().expand(-1, 3, -1, -1)
+        return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
 
     def get_latest_warped_ref_img(self):
         ref_LAB = self.data["reference_LAB"][0].clone().detach()  # 3xHxW
@@ -209,14 +209,14 @@ class Pix2PixTrainer():
                 atten_on_img = torch.Tensor(atten_on_img)
 
             else:
-                atten_on_img = pointwise_attention[0].expand(3,-1,-1) + one_reference_LAB
+                atten_on_img = pointwise_attention[0].repeat(3, 1, 1) + one_reference_LAB
                 atten_on_img = atten_on_img / torch.max(atten_on_img)
         else:
             if heatmap_format:
                 #FIXME
                 pass
             else:
-                atten_on_img = pointwise_attention[0].expand(3,-1,-1)
+                atten_on_img = pointwise_attention[0].repeat(3, 1, 1)
 
         # util.normalize(atten_on_img)
 
