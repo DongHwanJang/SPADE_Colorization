@@ -15,7 +15,6 @@ import dill as pickle
 import util.coco
 import subprocess
 from util.img_loader import lab_deloader
-from torchvision.transforms import functional as F
 
 
 def save_obj(obj, name):
@@ -64,11 +63,11 @@ def tile_images(imgs, picturesPerRow=4):
 
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
-def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
+def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False, lab=False):
     if isinstance(image_tensor, list):
         image_numpy = []
         for i in range(len(image_tensor)):
-            image_numpy.append(tensor2im(image_tensor[i], imtype, normalize))
+            image_numpy.append(tensor2im(image_tensor[i], imtype, normalize, lab=lab))
         return image_numpy
 
     if image_tensor.dim() == 4:
@@ -76,7 +75,7 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
         images_np = []
         for b in range(image_tensor.size(0)):
             one_image = image_tensor[b]
-            one_image_np = tensor2im(one_image, imtype, normalize)
+            one_image_np = tensor2im(one_image, imtype, normalize, lab=lab)
             images_np.append(one_image_np.reshape(1, *one_image_np.shape))
         images_np = np.concatenate(images_np, axis=0)
         if tile:
@@ -96,13 +95,24 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
 
     image_tensor = image_tensor.detach().cpu().float()
     if normalize:
-        image_tensor = denormalize(image_tensor) * 255.0
+        if lab:
+            image_tensor = denormalize(image_tensor, mean=(50, 0, 0), std=(50, 128, 128))
+
+        else:
+            image_tensor = denormalize(image_tensor) * 255.0
     else:
         image_tensor = image_tensor * 255.0
     image_numpy = np.transpose(image_tensor.numpy(), (1, 2, 0))
 
+    # clipping
+    if lab:
+        image_numpy[0] = np.clip(image_numpy[0], 0, 100)
+        image_numpy[1] = np.clip(image_numpy[1], -128, 128)
+        image_numpy[2] = np.clip(image_numpy[2], -128, 128)
+        image_numpy = lab_deloader(image_numpy, np_output=True)
+    else:
+        image_numpy = np.clip(image_numpy, 0, 255)
 
-    image_numpy = np.clip(image_numpy, 0, 255)
     if image_numpy.shape[2] == 1:
         image_numpy = image_numpy[:, :, 0]
     return image_numpy.astype(imtype)
@@ -140,7 +150,7 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
 
 def normalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
     if len(img.size()) == 3:
-        return normalize(img.unsqueeze(0)).squeeze(0)
+        return normalize(img.unsqueeze(0), mean, std).squeeze(0)
 
     img[:, 0, :, :] = (img[:, 0, :, :] - mean[0]) / std[0]
     img[:, 1, :, :] = (img[:, 1, :, :] - mean[1]) / std[1]
@@ -150,7 +160,7 @@ def normalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
 
 def denormalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
     if len(img.size()) == 3:
-        return denormalize(img.unsqueeze(0)).squeeze(0)
+        return denormalize(img.unsqueeze(0), mean, std).squeeze(0)
 
     img[:, 0, :, :] = img[:, 0, :, :] * std[0] + mean[0]
     img[:, 1, :, :] = img[:, 1, :, :] * std[1] + mean[1]
@@ -170,11 +180,10 @@ def save_image(image_numpy, image_path, create_dir=False):
         image_numpy = image_numpy.transpose((1, 2, 0))
         image_numpy = np.tile(image_numpy, (1, 1, 3))
 
-    if 'lab' in image_path.lower() or 'synth' in image_path.lower():
-        image_pil = Image.fromarray(image_numpy.astype(np.uint8), mode='LAB')
-        image_pil = lab_deloader(image_pil, np_output=False)
-    else:
-        image_pil = Image.fromarray(image_numpy.astype(np.uint8))
+    # if 'lab' in image_path.lower() or 'synth' in image_path.lower():
+    #     image_pil = lab_deloader(image_numpy, np_output=False)
+    # else:
+    image_pil = Image.fromarray(image_numpy.astype(np.uint8))
     # save to png
     image_pil.save(image_path.replace('.jpg', '.png'))
 
@@ -347,3 +356,5 @@ def find_pretrained_weight(weight_root, opt=None):
         subprocess.call(' '.join(['wget -o ', weight_name, url]), shell=True)
 
     return weight_name
+
+

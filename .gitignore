@@ -12,3 +12,4 @@ test_tensor.py
 venv/
 *.png
 *.jpeg
+*.log
