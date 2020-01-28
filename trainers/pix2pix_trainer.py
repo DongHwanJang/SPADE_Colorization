@@ -90,6 +90,21 @@ class Pix2PixTrainer():
         warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
         warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
 
+        ###################################################
+        # TODO LAB color map test
+        # target_B = torch.zeros_like(target_L)
+        # target_A = torch.zeros_like(target_L)
+        #
+        # H = target_L.size()[-2]
+        # W = target_L.size()[-1]
+        #
+        # for j in range(0, H):
+        #     for i in range(0, W):
+        #         target_B[:, :, :, j] = 2*(float(j) / W) - 1
+        #         target_A[:, :, i, :] = 2*(float(i) / H) - 1
+        # warped_AB = torch.cat([target_A, target_B], dim=1)
+        ###################################################
+
         return torch.cat([target_L, warped_AB], dim=1)
 
 
@@ -119,19 +134,11 @@ class Pix2PixTrainer():
 
         target_L_gray_image = util.denormalize(target_L_gray_image.clone().detach())
 
-
         x, y = point
         H = target_L_gray_image.size()[-2]
         W = target_L_gray_image.size()[-1]
         conf_H = self.conf_map.size()[-2]
         scale = H/conf_H
-
-        # TODO LAB color map test
-        # target_L=torch.zeros_like(target_L)+0.5
-        # for j in range(0,H):
-        #     for i in range(0,W):
-        #         target_B[:, :, :, j] = float(j) / W
-        #         target_A[:, :, i, :] = float(i) / H
 
         for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
             for k in range(np.max([0, int(y*scale) - marker_size // 2]), np.min([H, int(y*scale) + marker_size // 2])):
