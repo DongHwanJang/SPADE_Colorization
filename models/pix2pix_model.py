@@ -6,7 +6,8 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import models.networks as networks
 import util.util as util
-
+from util.img_loader import lab_deloader
+from torchvision.transforms import functional as F
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -169,6 +170,14 @@ class Pix2PixModel(torch.nn.Module):
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
         fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
+        fake_rgb_np = lab_deloader(fake_LAB.detach().cpu().float().numpy().squeeze(0).transpose(1, 2, 0),
+                                   np_output=True)
+        target_rgb_np = lab_deloader(target_LAB.detach().cpu().float().numpy().squeeze(0).transpose(1, 2, 0),
+                                     np_output=True)
+
+        fake_RGB = F.to_tensor(fake_rgb_np).cuda().unsqueeze(0)
+        target_RGB = F.to_tensor(target_rgb_np).cuda().unsqueeze(0)
+
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
 
@@ -192,7 +201,7 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['GAN_Feat'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
-            G_losses['VGG'] = self.criterionVGG(fake_LAB, target_LAB) * self.opt.lambda_vgg
+            G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB) * self.opt.lambda_vgg
 
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
