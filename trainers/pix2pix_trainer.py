@@ -67,7 +67,7 @@ class Pix2PixTrainer():
 
     def get_latest_conf_map(self):
         # return self.conf_map.detach().cpu()
-        return self.conf_map.clone().detach().expand(-1, 3, -1, -1)
+        return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
 
     def get_latest_warped_ref_img(self):
         ref_LAB = self.data["reference_LAB"][0].clone().detach()  # 3xHxW
@@ -89,6 +89,21 @@ class Pix2PixTrainer():
 
         warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
         warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
+
+        ###################################################
+        # TODO LAB color map test
+        # target_B = torch.zeros_like(target_L)
+        # target_A = torch.zeros_like(target_L)
+        #
+        # H = target_L.size()[-2]
+        # W = target_L.size()[-1]
+        #
+        # for j in range(0, H):
+        #     for i in range(0, W):
+        #         target_B[:, :, :, j] = 2*(float(j) / W) - 1
+        #         target_A[:, :, i, :] = 2*(float(i) / H) - 1
+        # warped_AB = torch.cat([target_A, target_B], dim=1)
+        ###################################################
 
         return torch.cat([target_L, warped_AB], dim=1)
 
@@ -115,22 +130,21 @@ class Pix2PixTrainer():
         return torch.stack(attention_visuals)
 
     def get_point_img_on_target(self, point, marker_size=9):
-        target_LAB = util.denormalize(self.data['target_LAB'].clone().detach())
-        target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB)
-        target_B = torch.zeros_like(target_L)+0.5 # TODO need to figure out which one is neutral value between 0 and 0.5
-        target_A = torch.zeros_like(target_L)+0.5
+        target_L_gray_image = self.data['target_L_gray_image']
+
+        target_L_gray_image = util.denormalize(target_L_gray_image.clone().detach())
 
         x, y = point
-        H = target_LAB.size()[-2]
-        W = target_LAB.size()[-1]
+        H = target_L_gray_image.size()[-2]
+        W = target_L_gray_image.size()[-1]
         conf_H = self.conf_map.size()[-2]
         scale = H/conf_H
 
         for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
             for k in range(np.max([0, int(y*scale) - marker_size // 2]), np.min([H, int(y*scale) + marker_size // 2])):
-                target_A[:,:,j,k] = 0  # be careful for the indexing order # assign max A value
+                target_L_gray_image[:,1,j,k] = 1  # be careful for the indexing order # assign max A value
 
-        return torch.cat([target_L, target_A, target_B], dim=1).squeeze(0)
+        return target_L_gray_image.squeeze(0)
 
 
     def get_grid_points(self, n_partition = 4):
@@ -183,9 +197,13 @@ class Pix2PixTrainer():
                                             size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_refxW_ref
 
         reference_LAB = self.data["reference_LAB"].clone().detach()
-        one_reference_LAB = util.denormalize(reference_LAB)[0]  # CxHxW 0~1
+
 
         if overlay:
+            ## FIXME
+            one_reference_LAB = util.denormalize(
+                reference_LAB, mean=(50, 0, 0), std=(50, 128, 128))[0]  # CxHxW -128~128
+
             if heatmap_format:
                 # TODO need to convert LAB to RGB
                 heatmap = cv2.applyColorMap(
@@ -198,14 +216,14 @@ class Pix2PixTrainer():
                 atten_on_img = torch.Tensor(atten_on_img)
 
             else:
-                atten_on_img = pointwise_attention[0].expand(3,-1,-1) + one_reference_LAB
+                atten_on_img = pointwise_attention[0].repeat(3, 1, 1) + one_reference_LAB
                 atten_on_img = atten_on_img / torch.max(atten_on_img)
         else:
             if heatmap_format:
                 #FIXME
                 pass
             else:
-                atten_on_img = pointwise_attention[0].expand(3,-1,-1)
+                atten_on_img = pointwise_attention[0].repeat(3, 1, 1)
 
         # util.normalize(atten_on_img)
 
