@@ -95,10 +95,10 @@ class ResnetBlock(nn.Module):
 
 
 # VGG architecter, used for the perceptual loss using a pretrained VGG network
-class VGG19(nn.Module):
+class VGG19BN(nn.Module):
     def __init__(self, requires_grad=False):
-        super(VGG19, self).__init__()
-        vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
+        super(VGG19BN, self).__init__()
+        vgg_pretrained_features = torchvision.models.vgg19_bn(pretrained=True).features
         self.slice1_corr = nn.Sequential()
         self.slice2_corr = nn.Sequential()
         self.slice3_corr = nn.Sequential()
@@ -111,24 +111,24 @@ class VGG19(nn.Module):
         self.slice4 = nn.Sequential()
         self.slice5 = nn.Sequential()
 
-        for x in range(9):
+        for x in range(13):
             self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(9, 14):
+        for x in range(13, 20):
             self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(14, 23):
+        for x in range(20, 33):
             self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(23, 32):
+        for x in range(33, 46):
             self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
 
-        for x in range(2):
+        for x in range(3):
             self.slice1.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(2, 7):
+        for x in range(3, 10):
             self.slice2.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(7, 12):
+        for x in range(10, 17):
             self.slice3.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(12, 21):
+        for x in range(17, 30):
             self.slice4.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(21, 30):
+        for x in range(30, 43):
             self.slice5.add_module(str(x), vgg_pretrained_features[x])
 
 
@@ -136,9 +136,9 @@ class VGG19(nn.Module):
             for param in self.parameters():
                 param.requires_grad = False
 
-    def forward(self, X, corr_feature=True):
+    def forward(self, x, corr_feature=True):
         if corr_feature:
-            h_relu1 = self.slice1_corr(X)
+            h_relu1 = self.slice1_corr(x)
             h_relu2 = self.slice2_corr(h_relu1)
             h_relu3 = self.slice3_corr(h_relu2)
             h_relu4 = self.slice4_corr(h_relu3)
@@ -146,7 +146,7 @@ class VGG19(nn.Module):
             out = [h_relu1, h_relu2, h_relu3, h_relu4]
 
         else:
-            h_relu1 = self.slice1(X)
+            h_relu1 = self.slice1(x)
             h_relu2 = self.slice2(h_relu1)
             h_relu3 = self.slice3(h_relu2)
             h_relu4 = self.slice4(h_relu3)
@@ -157,138 +157,65 @@ class VGG19(nn.Module):
         return out
 
 
-class Scale(nn.Module):
-    def __init__(self, channels):
-        super(Scale, self).__init__()
-        self.weight = nn.parameter.Parameter(torch.Tensor(channels))
-        self.bias = nn.parameter.Parameter(torch.Tensor(channels))
-        self.channels = channels
+class VGG19BN_L(nn.Module):
+    def __init__(self, checkpoint_dir, requires_grad=False):
+        super(VGG19BN_L, self).__init__()
+        vgg_pretrained_features = torch.load(checkpoint_dir).features
+        self.slice1_corr = nn.Sequential()
+        self.slice2_corr = nn.Sequential()
+        self.slice3_corr = nn.Sequential()
+        self.slice4_corr = nn.Sequential()
+        self.slice5_corr = nn.Sequential()
 
-    def __repr__(self):
-        return 'Scale(channels = %d)' % self.channels
+        self.slice1 = nn.Sequential()
+        self.slice2 = nn.Sequential()
+        self.slice3 = nn.Sequential()
+        self.slice4 = nn.Sequential()
+        self.slice5 = nn.Sequential()
 
-    def forward(self, x):
-        nB = x.size(0)
-        nC = x.size(1)
-        nH = x.size(2)
-        nW = x.size(3)
-        x = x * self.weight.view(1, nC, 1, 1).expand(nB, nC, nH, nW) + \
-            self.bias.view(1, nC, 1, 1).expand(nB, nC, nH, nW)
-        return x
+        for x in range(13):
+            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(13, 20):
+            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(20, 33):
+            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(33, 46):
+            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
 
-
-# Ported from caffemodel. The original model is made from the author of 'image colorization'.
-# Luminance-only feature extraction is available for this model.
-# weight can get from the link 'https://www.dropbox.com/s/smfuhqremoxc0ro/gray_vgg19_bn.pth?dl=0'
-class Vgg19BN(nn.Module):
-    def __init__(self, requires_grad=False):
-        super(Vgg19BN, self).__init__()
-
-        self.layers = nn.ModuleList([
-            nn.BatchNorm2d(3, eps=1e-05, momentum=0.9, affine=False),
-            Scale(channels=3),
-
-            nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(64, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(64, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
-            nn.Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(128, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(128, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
-            nn.Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(256, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
-            nn.Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=True),
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)),
-            nn.BatchNorm2d(512, eps=1e-05, momentum=0.9, affine=False),
-            nn.ReLU(inplace=True)
-        ])
+        for x in range(3):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(3, 10):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(10, 17):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(17, 30):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(30, 43):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
 
         if not requires_grad:
             for param in self.parameters():
                 param.requires_grad = False
 
     def forward(self, x, corr_feature=True):
-        features = []
-        # pretend that it is used for correlation loss
         if corr_feature:
-            for idx in range(15):
-                x = self.layers[idx](x)
-            features.append(x)  # relu2_2
-            for idx in range(15, 22):
-                x = self.layers[idx](x)
-            features.append(x)  # relu3_2
-            for idx in range(22, 35):
-                x = self.layers[idx](x)
-            features.append(x)  # relu4_2
-            for idx in range(35, 48):
-                x = self.layers[idx](x)
-            features.append(x)  # relu5_2
+            h_relu1 = self.slice1_corr(x)
+            h_relu2 = self.slice2_corr(h_relu1)
+            h_relu3 = self.slice3_corr(h_relu2)
+            h_relu4 = self.slice4_corr(h_relu3)
+
+            out = [h_relu1, h_relu2, h_relu3, h_relu4]
 
         else:
-            for idx in range(5):
-                x = self.layers[idx](x)
-            features.append(x)
+            h_relu1 = self.slice1(x)
+            h_relu2 = self.slice2(h_relu1)
+            h_relu3 = self.slice3(h_relu2)
+            h_relu4 = self.slice4(h_relu3)
+            h_relu5 = self.slice5(h_relu4)
 
-            for idx in range(5, 12):
-                x = self.layers[idx](x)
-            features.append(x)
+            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
 
-            for idx in range(12, 19):
-                x = self.layers[idx](x)
-            features.append(x)
-
-            for idx in range(19, 32):
-                x = self.layers[idx](x)
-            features.append(x)
-
-            for idx in range(32, 45):
-                x = self.layers[idx](x)
-            features.append(x)
-
-        return features
+        return out
 
 
 class VGG19BN_LAB(nn.Module):
@@ -362,14 +289,9 @@ class VGGFeatureExtractor(nn.Module):
 
         # create vgg Model
         self.opt = opt
-        if self.opt.ref_type == 'l' or self.opt.ref_type == 'ab' or self.opt.ref_type == 'lab':
-            checkpoint_dir = "models/networks/checkpoint.pth.tar"
-            self.vgg = VGG19BN_LAB(torch.load(checkpoint_dir)["state_dict"]).cuda()
-
-            # self.vgg = Vgg19BN().cuda().eval()
-            # self.vgg.load_state_dict(torch.load(util.find_pretrained_weight(opt.weight_root, opt=opt)))
-        else:
-            self.vgg = VGG19().cuda()
+        checkpoint_dir = "models/networks/checkpoint.pth.tar"
+        self.vgg_tar = VGG19BN_L(checkpoint_dir).cuda()
+        self.vgg_ref = VGG19BN().cuda()
 
         # create conv layers
         self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
@@ -412,12 +334,12 @@ class VGGFeatureExtractor(nn.Module):
 
         if is_ref:
             x = x[:, 0, :, :].unsqueeze(1).expand(-1, 3, -1, -1)
+            vgg_feature = self.vgg_ref(x, corr_feature=True)
         else:
             if self.opt.ref_type == 'l' and x.size()[1] == 1:
                 x = x.expand(-1, 3, -1, -1)
+            vgg_feature = self.vgg_tar(x, corr_feature=True)
 
-
-        vgg_feature = self.vgg(x, corr_feature=True)
         vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
         vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
         vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
