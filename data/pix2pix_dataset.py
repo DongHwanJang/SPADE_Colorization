@@ -6,10 +6,12 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 # import util.util as util
-from util.img_loader import lab_loader, rgb_loader
+from util.img_loader import lab_loader, rgb_loader, rgb_pil2l_as_rgb, rgb_pil2lab_tensor
 import os
 import numpy
-
+import numpy as np
+from skimage.color import rgb2lab, lab2rgb
+from torchvision.transforms import functional as F
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -49,23 +51,36 @@ class Pix2pixDataset(BaseDataset):
         similarity = numpy.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
         reference_path = self.target_ref_dict[target_path][similarity]
 
-        target_LAB = lab_loader(self.opt, target_path, is_ref=False)
-        reference_LAB = lab_loader(self.opt, reference_path, is_ref=True)
-        target_rgb = rgb_loader(self.opt, target_path)
-        reference_rgb = rgb_loader(self.opt, reference_path)
+        # target_LAB = lab_loader(self.opt, target_path, is_ref=False)
+        # reference_LAB = lab_loader(self.opt, reference_path, is_ref=True)
+        target_rgb_pil = rgb_loader(self.opt, target_path)
+        reference_rgb_pil = rgb_loader(self.opt, reference_path)
 
-        transform_image = get_transform(self.opt, params)
+        transform_image_rgb = get_transform(self.opt, params, normalize=False, toTensor=False)
+        # transform_image_LAB = get_transform(self.opt, params, normalize=False, toTensor=False)
 
-        target_LAB = transform_image(target_LAB)
-        reference_LAB = transform_image(reference_LAB)
-        target_rgb = transform_image(target_rgb)
-        reference_rgb = transform_image(reference_rgb)
+        target_rgb_pil = transform_image_rgb(target_rgb_pil)
+        reference_rgb_pil = transform_image_rgb(reference_rgb_pil)
+
+        ####### LAB
+        target_lab = rgb_pil2lab_tensor(target_rgb_pil)
+        reference_lab = rgb_pil2lab_tensor(reference_rgb_pil)
+
+        ####### L in RGB
+        target_L_gray_image = rgb_pil2l_as_rgb(target_rgb_pil, need_Tensor=True)
+
+        ####### RGB
+        target_rgb = F.normalize(F.to_tensor(target_rgb_pil), mean=[0.485, 0.456, 0.406],
+                                                std=[0.229, 0.224, 0.225])
+        reference_rgb = F.normalize(F.to_tensor(reference_rgb_pil), mean=[0.485, 0.456, 0.406],
+                                                std=[0.229, 0.224, 0.225])
 
         input_dict = {'label': target_path,
                       'target_image': target_rgb,
                       'reference_image': reference_rgb,
-                      'target_LAB': target_LAB,
-                      'reference_LAB': reference_LAB,
+                      'target_LAB': target_lab,
+                      'reference_LAB': reference_lab,
+                      'target_L_gray_image': target_L_gray_image,
                       "similarity": similarity,
                       'is_reconstructing': False}
 
@@ -73,3 +88,8 @@ class Pix2pixDataset(BaseDataset):
 
     def __len__(self):
         return self.dataset_size
+
+
+
+
+

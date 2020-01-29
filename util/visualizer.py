@@ -63,9 +63,6 @@ class Visualizer():
 
                 if len(image_numpy.shape) >= 4:
                     image_numpy = image_numpy[0]
-                if 'lab' in label.lower() or 'synth' in label.lower():
-                    # convert LAB to RGB
-                    image_numpy = lab_deloader(Image.fromarray(image_numpy.astype(np.uint8), mode='LAB'), np_output=True)
 
                 if len(image_numpy.shape) == 3 and image_numpy.shape[0] == 1:
                     image_numpy = image_numpy.transpose((1, 2, 0))
@@ -156,10 +153,14 @@ class Visualizer():
                     tile = tile or (t.size()[0]>8 if len(t.size())==4 else False)
 
                     if '_map' in key:
-                        # conf_map = 0~1
-                        t = util.tensor2im(t, tile=tile, normalize=False)
+                        norm = False
                     else:
-                        t = util.tensor2im(t, tile=tile)
+                        norm = True
+
+                    if 'lab' in key.lower() or 'synth' in key.lower():
+                        t = util.tensor2im(t, tile=tile, imtype=np.float32, normalize=norm, lab=True)
+                    else:
+                        t = util.tensor2im(t, tile=tile, normalize=norm)
 
                 new_visuals[key] = t
         return new_visuals
