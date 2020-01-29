@@ -39,7 +39,7 @@ for epoch in iter_counter.training_epochs():
 
         # to run reconstruction loss, set reference_LAB = target_LAB
         if i % opt.reconstruction_period == 0:
-            data_i["reference_LAB"] = data_i["target_LAB"]
+            data_i["reference_LAB"] = data_i["target_LAB"].clone().detach()
             data_i["is_reconstructing"] = True
 
         # Training
@@ -65,7 +65,7 @@ for epoch in iter_counter.training_epochs():
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('conf_map', trainer.get_latest_conf_map()),
                                    ('attention_map', trainer.get_latest_attention()),  # FIXME
-                                   ('warped_img', trainer.get_warped_ref_img()),
+                                   ('warped_img_LAB', trainer.get_latest_warped_ref_img()),
                                    ('synthesized_image', trainer.get_latest_generated()),
                                    ('target_image', data_i['target_image']),
                                    ('reference_image', data_i['reference_image']),

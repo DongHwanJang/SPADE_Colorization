@@ -154,7 +154,12 @@ class Visualizer():
                 else:
                     # if Batch size info is included in t, use that
                     tile = tile or (t.size()[0]>8 if len(t.size())==4 else False)
-                    t = util.tensor2im(t, tile=tile)
+
+                    if '_map' in key:
+                        # conf_map = 0~1
+                        t = util.tensor2im(t, tile=tile, normalize=False)
+                    else:
+                        t = util.tensor2im(t, tile=tile)
 
                 new_visuals[key] = t
         return new_visuals

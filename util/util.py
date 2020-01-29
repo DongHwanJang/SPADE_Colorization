@@ -76,7 +76,7 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
         images_np = []
         for b in range(image_tensor.size(0)):
             one_image = image_tensor[b]
-            one_image_np = tensor2im(one_image)
+            one_image_np = tensor2im(one_image, imtype, normalize)
             images_np.append(one_image_np.reshape(1, *one_image_np.shape))
         images_np = np.concatenate(images_np, axis=0)
         if tile:
@@ -88,12 +88,20 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
     if image_tensor.dim() == 2:
         image_tensor = image_tensor.unsqueeze(0)
 
-    image_numpy = image_tensor.detach().cpu().float().numpy()
+    # image_numpy = image_tensor.detach().cpu().float().numpy()
+    # if normalize:
+    #     image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0 ##FIXME fix mean and std
+    # else:
+    #     image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
 
+    image_tensor = image_tensor.detach().cpu().float()
     if normalize:
-        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+        image_tensor = denormalize(image_tensor) * 255.0
     else:
-        image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
+        image_tensor = image_tensor * 255.0
+    image_numpy = np.transpose(image_tensor.numpy(), (1, 2, 0))
+
+
     image_numpy = np.clip(image_numpy, 0, 255)
     if image_numpy.shape[2] == 1:
         image_numpy = image_numpy[:, :, 0]
@@ -131,12 +139,23 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
 
 
 def normalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
-    return F.normalize(img, mean=mean, std=std)
+    if len(img.size()) == 3:
+        return normalize(img.unsqueeze(0)).squeeze(0)
+
+    img[:, 0, :, :] = (img[:, 0, :, :] - mean[0]) / std[0]
+    img[:, 1, :, :] = (img[:, 1, :, :] - mean[1]) / std[1]
+    img[:, 2, :, :] = (img[:, 2, :, :] - mean[2]) / std[2]
+
+    return img
 
 def denormalize(img, mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]):
+    if len(img.size()) == 3:
+        return denormalize(img.unsqueeze(0)).squeeze(0)
+
     img[:, 0, :, :] = img[:, 0, :, :] * std[0] + mean[0]
     img[:, 1, :, :] = img[:, 1, :, :] * std[1] + mean[1]
     img[:, 2, :, :] = img[:, 2, :, :] * std[2] + mean[2]
+
     return img
 
 def save_image(image_numpy, image_path, create_dir=False):
