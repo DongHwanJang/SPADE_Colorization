@@ -78,9 +78,9 @@ class Visualizer():
                 # Create a Summary value
                 img_summaries.append(self.tf.Summary.Value(tag=label, image=img_sum))
 
-                if self.use_wandb:
-                    self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
-
+        if self.use_wandb:
+            for label, image_numpy in visuals.items():
+                self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
 
             # Create and write Summary
             summary = self.tf.Summary(value=img_summaries)
@@ -133,11 +133,14 @@ class Visualizer():
             for tag, value in errors.items():
                 value = value.mean().float()
 
-                if self.use_wandb:
-                    self.wandb.log({tag:value}, step=step)
-
                 summary = self.tf.Summary(value=[self.tf.Summary.Value(tag=tag, simple_value=value)])
                 self.writer.add_summary(summary, step)
+
+        if self.use_wandb:
+            for tag, value in errors.items():
+                value = value.mean().float()
+                self.wandb.log({tag: value}, step=step)
+
 
     # errors: same format as |errors| of plotCurrentErrors
     def print_current_errors(self, epoch, i, errors, t):
