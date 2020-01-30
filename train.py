@@ -16,7 +16,7 @@ import wandb
 # parse options
 opt = TrainOptions().parse()
 if opt.use_wandb:
-    wandb.init(opt.name, resume=opt.continue_train)
+    wandb.init(project="SPADE Colorization", name=opt.name, resume=opt.continue_train, magic=True)
     wandb.config.update(opt)
     opt.wandb = wandb
 
