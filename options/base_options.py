@@ -174,7 +174,6 @@ class BaseOptions():
             if id >= 0:
                 opt.gpu_ids.append(id)
         if len(opt.gpu_ids) > 0:
-            print(opt.gpu_ids)
             torch.cuda.set_device(opt.gpu_ids[0])
 
         assert len(opt.gpu_ids) == 0 or opt.batchSize % len(opt.gpu_ids) == 0, \
