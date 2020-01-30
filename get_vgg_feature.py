@@ -5,15 +5,11 @@ from torch.nn.parameter import Parameter
 from skimage import io, color
 from skimage.transform import resize
 import util.util as util
-from util.pca import PCA
+from util.pca import pca
 import pickle
 import numpy as np
 import torchvision
-from torch.utils.data import Dataset, DataLoader
-from util.img_loader import lab_loader, rgb_loader, rgb_pil2l_as_rgb, rgb_pil2lab_tensor
-from PIL import Image
-import torchvision.transforms as transforms
-from time import time
+
 
 class VGG19BN_LAB(nn.Module):
     def __init__(self, checkpoint, requires_grad=False):
@@ -74,36 +70,8 @@ class VGG19BN_LAB(nn.Module):
 
         return out[-1]
 
-class ImageNetGrayscale(Dataset):
-    def __init__(self, imagenet_path):
-        self.imagenet_path = imagenet_path
-        self.image_paths = []
 
-        for root_path, _, files in os.walk(target_folder):
-            for file in files:
-                self.image_paths.append(os.path.join(root_path, file))
-
-
-        print("total images: " + str(len(self.image_paths)))
-
-    def __len__(self):
-        return len(self.image_paths)
-
-    def __getitem__(self, idx):
-
-        file_path = self.image_paths[idx]
-        with open(file_path, 'rb') as f:
-            with Image.open(f) as img:
-                rgb_image = img.convert('RGB')
-                transform = transforms.Resize([256,256], interpolation=Image.BICUBIC)
-                rgb_image = transform(rgb_image)
-                target_L_gray_image = rgb_pil2l_as_rgb(rgb_image, need_Tensor=True)
-
-                splitted_path = os.path.normpath(file_path).split("/")
-
-        return target_L_gray_image, splitted_path[0], splitted_path[1]
-
-def pickle_save(model, loader, target_folder, feature_folder):
+def pickle_save(model, target_folder, feature_folder):
     idx_folder = 0
     for (path, _, files) in os.walk(target_folder):
         idx_folder += 1
@@ -129,6 +97,7 @@ def pickle_save(model, loader, target_folder, feature_folder):
                 else:
                     lab = torch.from_numpy(color.rgb2lab(rgb)[:, :, 0]).float()
 
+                lab = torch.unsqueeze(lab, 0)
 
                 # Block saving luminance image, because of shortage of SSD available
                 # feature_file['luminance'] = lab
@@ -138,70 +107,31 @@ def pickle_save(model, loader, target_folder, feature_folder):
 
                 outputs = model.forward(lab.cuda())
 
-                print(outputs.size())
-
                 feat_size = outputs.size()[-2:]
                 feature_map = outputs.squeeze(0).view(512, -1)
                 try:
-
                     local_feature = pca(feature_map.t(), k=64).t().view(64, *feat_size)
                     print(pickle_key, local_feature.size(), idx, '/', len_files, idx_folder)
                     feature_file['feature'] = local_feature.cpu().numpy()
                     feature_dict[pickle_key] = feature_file
-                    print("I'm in the loop")
                 except:
                     pass
 
-            print(path_base)
             with open(feature_folder + path_base + '.pickle', 'wb') as handle:
                 pickle.dump(feature_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+
 if __name__ == '__main__':  # Test Mode
 
-    target_folder = '/DATA1/hksong/imagenet/train/'
-    feature_folder = '../data/imagenet_feature/'
-    base_path = "/DATA1/isaac/imagenet_features"
-    model_dict = torch.load('models/networks/checkpoint.pth.tar').state_dict()
+    model_dict = torch.load('models/networks/checkpoint.pth.tar')['state_dict']
     model = VGG19BN_LAB(model_dict)
 
     model.cuda()
-    pca = PCA().cuda()
+    # torch.save(model, 'model.pth')
 
-    dataset = ImageNetGrayscale(target_folder)
-    loader = DataLoader(dataset, batch_size = 128, shuffle=False, num_workers=20, pin_memory=True)
-
-
+    target_folder = '../data/imagenet/train/'
+    feature_folder = '../data/imagenet_feature/'
     if not os.path.exists(feature_folder):
         os.makedirs(feature_folder, exist_ok=True)
 
-    print("starting inference")
-
-
-    prev_class = None
-    current_class = None
-    total_files_run = 0
-    total_files = len(dataset)
-    for grayscales, class_names, file_names in loader:
-        start_time = time()
-        print(str(total_files_run) + " / " + str(total_files) + " complete")
-        with torch.no_grad():
-
-            feature_maps = model.forward(grayscales.cuda())
-
-            for feature_map, class_name, file_name in zip(feature_maps, class_names, file_names):
-                feat_size = feature_map.size()[-2:]
-                feature_map = feature_map.squeeze(0).view(512, -1)
-                local_feature = pca(feature_map.t(), k=64).t().view(64, *feat_size)
-                local_feature = local_feature.cpu().numpy()
-
-                folder_name = os.path.join(base_path, class_name)
-                if not os.path.exists(folder_name):
-                    os.mkdir(folder_name)
-
-                with open(os.path.join(folder_name, file_name + ".pickel"), 'wb') as handle:
-                    pickle.dump(local_feature, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            total_files_run += grayscales.size()[0]
-
-        batch_time = time() - start_time
-        print(str(batch_time / grayscales.size()[0]) + " s per image")
+    pickle_save(model, target_folder, feature_folder)
