@@ -276,7 +276,6 @@ class CG(torch.autograd.Function):
 if __name__ == "__main__":
     in_tensor = torch.randn(3, 3, 3)
     mine = wls_filter(in_tensor)
-    print(in_tensor)
 
 
     ref = ref_wls_filter(in_tensor.numpy())

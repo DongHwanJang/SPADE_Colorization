@@ -28,6 +28,10 @@ class Visualizer():
         self.use_html = opt.isTrain and not opt.no_html
         self.win_size = opt.display_winsize
         self.name = opt.name
+        self.use_wandb = opt.use_wandb
+        if self.use_wandb:
+            self.wandb = opt.wandb
+
         if self.tf_log:
             import tensorflow as tf
             self.tf = tf
@@ -73,6 +77,10 @@ class Visualizer():
                 img_sum = self.tf.Summary.Image(encoded_image_string=s.getvalue(), height=image_numpy.shape[0], width=image_numpy.shape[1])
                 # Create a Summary value
                 img_summaries.append(self.tf.Summary.Value(tag=label, image=img_sum))
+
+                if self.use_wandb:
+                    self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
+
 
             # Create and write Summary
             summary = self.tf.Summary(value=img_summaries)
@@ -120,9 +128,15 @@ class Visualizer():
 
     # errors: dictionary of error labels and values
     def plot_current_errors(self, errors, step):
+        print("step = " + str(step))
+
         if self.tf_log:
             for tag, value in errors.items():
                 value = value.mean().float()
+
+                if self.use_wandb:
+                    self.wandb.log({tag:value}, step=step)
+
                 summary = self.tf.Summary(value=[self.tf.Summary.Value(tag=tag, simple_value=value)])
                 self.writer.add_summary(summary, step)
 
@@ -130,8 +144,6 @@ class Visualizer():
     def print_current_errors(self, epoch, i, errors, t):
         message = '(epoch: %d, iters: %d, time: %.3f) ' % (epoch, i, t)
         for k, v in errors.items():
-            #print(v)
-            #if v != 0:
             v = v.mean().float()
             message += '%s: %.3f ' % (k, v)
 

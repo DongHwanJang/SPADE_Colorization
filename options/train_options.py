@@ -4,7 +4,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 
 from .base_options import BaseOptions
-
+import wandb
 
 class TrainOptions(BaseOptions):
     def initialize(self, parser):
@@ -31,6 +31,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_smoothness_loss', action='store_true', help='Use smoothness loss')
         parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
         parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
+        parser.add_argument('--use_wandb', action='store_true', help='Use Weights and Biases')
 
 
 
@@ -53,4 +54,5 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lambda_kld', type=float, default=0.05)
         parser.add_argument('--reconstruction_period', type=int, default=2)
         self.isTrain = True
+
         return parser

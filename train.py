@@ -10,11 +10,15 @@ import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer
-
 import os
+import wandb
 
 # parse options
 opt = TrainOptions().parse()
+if opt.use_wandb:
+    wandb.init(project="SPADE Colorization", name=opt.name, resume=opt.continue_train, magic=True)
+    wandb.config.update(opt)
+    opt.wandb = wandb
 
 # print options to help debugging
 print(' '.join(sys.argv))
@@ -34,7 +38,6 @@ visualizer = Visualizer(opt)
 for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
-        print("iter_counter.record_one_iteration()")
         iter_counter.record_one_iteration()
 
         # to run reconstruction loss, set reference_LAB = target_LAB
@@ -44,21 +47,17 @@ for epoch in iter_counter.training_epochs():
 
         # Training
         # train generator
-        print("trainer.run_generator_one_step(data_i)")
         if i % opt.D_steps_per_G == 0:
             trainer.run_generator_one_step(data_i)
 
-        print("trainer.run_discriminator_one_step(data_i)")
         # train discriminator
         trainer.run_discriminator_one_step(data_i)
 
         # Visualizations
-        # if iter_counter.needs_printing():
-        if True:
-            losses = trainer.get_latest_losses()
-            visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
-                                            losses, iter_counter.time_per_iter)
-            visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
+        losses = trainer.get_latest_losses()
+        visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
+                                        losses, iter_counter.time_per_iter)
+        visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
         # if iter_counter.needs_displaying():
         if True:
@@ -91,4 +90,6 @@ for epoch in iter_counter.training_epochs():
         trainer.save('latest')
         trainer.save(epoch)
 
+if opt.use_wandb:
+    wandb.save(opt.name + ".h5")
 print('Training was successfully finished.')

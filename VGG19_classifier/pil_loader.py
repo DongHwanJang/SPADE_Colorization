@@ -27,5 +27,4 @@ def L_pil_loader(path):
             img = img.convert('RGB')
             lab = ImageCms.applyTransform(img, rgb2lab_transform)
             L, _, _ = lab.split()
-            print(L.size)
             return L
