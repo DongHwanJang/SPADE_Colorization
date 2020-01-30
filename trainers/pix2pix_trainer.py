@@ -130,7 +130,7 @@ class Pix2PixTrainer():
         return torch.stack(attention_visuals)
 
     def get_point_img_on_target(self, point, marker_size=9):
-        target_L_gray_image = self.data['target_L_gray_image']
+        target_L_gray_image = self.data['target_L_gray_image'][:1]
 
         target_L_gray_image = util.denormalize(target_L_gray_image.clone().detach())
 

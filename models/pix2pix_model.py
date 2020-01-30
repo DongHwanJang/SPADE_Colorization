@@ -8,6 +8,7 @@ import models.networks as networks
 import util.util as util
 from util.img_loader import lab_deloader
 from torchvision.transforms import functional as F
+from util import img_loader
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -74,11 +75,12 @@ class Pix2PixModel(torch.nn.Module):
     def forward(self, data, mode):
         reference_LAB = data["reference_LAB"]
         target_LAB = data["target_LAB"]
+        target_RGB = data["target_image"]
         target_L, target_AB = self.parse_LAB(target_LAB)
 
         if mode == 'generator':
             g_loss, generated, attention, conf_map = self.compute_generator_loss(
-                target_L, target_LAB, reference_LAB, is_reconstructing=data["is_reconstructing"])
+                target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=data["is_reconstructing"])
             return g_loss, generated, attention, conf_map
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
@@ -164,7 +166,7 @@ class Pix2PixModel(torch.nn.Module):
 
         return data['label'], data['image']
 
-    def compute_generator_loss(self, target_L, target_LAB, reference_LAB, is_reconstructing=False):
+    def compute_generator_loss(self, target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=False):
         G_losses = {}
 
 
@@ -173,13 +175,7 @@ class Pix2PixModel(torch.nn.Module):
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
         fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
-        fake_rgb_np = lab_deloader(fake_LAB.detach().cpu().float().numpy().squeeze(0).transpose(1, 2, 0),
-                                   np_output=True)
-        target_rgb_np = lab_deloader(target_LAB.detach().cpu().float().numpy().squeeze(0).transpose(1, 2, 0),
-                                     np_output=True)
-
-        fake_RGB = F.to_tensor(fake_rgb_np).cuda().unsqueeze(0)
-        target_RGB = F.to_tensor(target_rgb_np).cuda().unsqueeze(0)
+        fake_RGB = img_loader.torch_lab2rgb(fake_LAB, normalize=True)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
@@ -209,6 +205,7 @@ class Pix2PixModel(torch.nn.Module):
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
 
+        # TODO is_reconstructing.size() is not 1 for the batch input case
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
 
