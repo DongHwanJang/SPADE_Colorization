@@ -407,7 +407,7 @@ class NonLocalBlock(nn.Module):
                                   min=0,
                                   max=W_query * H_query - 1).cpu().numpy()
         index = [(x, y) for x, y in zip(list(range(W_query * H_query)), conf_argmax)]
-        print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
+        #print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
 
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key

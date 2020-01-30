@@ -128,7 +128,6 @@ class Visualizer():
 
     # errors: dictionary of error labels and values
     def plot_current_errors(self, errors, step):
-        print("step = " + str(step))
 
         if self.tf_log:
             for tag, value in errors.items():

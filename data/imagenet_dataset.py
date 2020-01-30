@@ -13,7 +13,6 @@ class ImagenetDataset(Pix2pixDataset):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         parser = Pix2pixDataset.modify_commandline_options(parser, is_train)
-        parser.set_defaults(dataroot='/DATA1/hksong/imagenet/')
         parser.set_defaults(preprocess_mode='resize_and_crop')
         # load_size = 286 if is_train else 256
         load_size = 256 if is_train else 256  # FIXME : need to concern about input size
@@ -27,13 +26,11 @@ class ImagenetDataset(Pix2pixDataset):
 
     def get_paths(self, opt):
         # root = opt.dataroot  # TODO: unify dataroot to one directory
-        root = "./pair_img/"
+        pair_txt = opt.pair_file
         phase = 'val' if opt.phase == 'test' else opt.phase
-
-        pair_list = os.path.join(root, '%s.txt' % phase)
         pair_data = dict()
 
-        with open(pair_list, mode='r') as f:
+        with open(pair_txt, mode='r') as f:
             data = [x.strip().split(" ") for x in f.readlines()]
 
         for line in data:
