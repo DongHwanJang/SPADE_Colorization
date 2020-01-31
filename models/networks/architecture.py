@@ -48,6 +48,10 @@ class SPADEResnetBlock(nn.Module):
         if self.learned_shortcut:
             self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
+    def get_weights(self):
+        return {"first_spade_shared_conv": self.norm_0.get_weights,
+                "last_conv": self.conv_1.weights}
+
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
     def forward(self, x, seg, conf_map):
@@ -363,7 +367,7 @@ class VGGFeatureExtractor(nn.Module):
         return F.leaky_relu(x, 2e-1)
 
 class NonLocalBlock(nn.Module):
-    def __init__(self, in_dim):
+    def __init__(self, opt, in_dim):
         super(NonLocalBlock, self).__init__()
 
         self.register_buffer('tau', torch.FloatTensor([0.01]))
@@ -371,8 +375,10 @@ class NonLocalBlock(nn.Module):
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
-
         self.softmax = nn.Softmax(dim=-1)
+        self.visualize_inner_vectors = opt.visualize_inner_vectors
+        self.inner_vectors = {}
+
 
     """
     key = ref_feature
@@ -402,24 +408,37 @@ class NonLocalBlock(nn.Module):
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
 
-        conf_argmax = torch.histc(torch.max(corr_map, dim=2)[1],
-                                  bins=W_query * H_query,
-                                  min=0,
-                                  max=W_query * H_query - 1).cpu().numpy()
-        index = [(x, y) for x, y in zip(list(range(W_query * H_query)), conf_argmax)]
-        #print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
+        # conf_argmax = torch.histc(torch.max(corr_map, dim=2)[1],
+        #                           bins=W_query * H_query,
+        #                           min=0,
+        #                           max=W_query * H_query - 1).cpu().numpy()
 
         attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
         proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
 
         out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["warped_value"] = out
+
         out = out.view(B, C_value, H_query, W_query)
 
+        # Todo: Why?
         out = self.gamma * out + value
 
         attention = attention.view(B, H_query, W_query, H_key, W_key)
 
         return attention, conf_map, out
+
+    def get_inner_vectors(self):
+        return [self.inner_vectors]
+
+    def get_inner_vectors(self):
+        return {
+            "query_conv":self.query_conv.weight,
+            "key_conv":self.key_conv.weight,
+            "gamma":self.gamma
+        }
 
 class CorrSubnet(nn.Module):
     def __init__(self, opt):
@@ -428,7 +447,10 @@ class CorrSubnet(nn.Module):
         # create vgg Model
         self.vgg_feature_extracter = VGGFeatureExtractor(opt)
 
-        self.non_local_blk = NonLocalBlock(256)
+        self.non_local_blk = NonLocalBlock(opt, 256)
+
+        self.visualize_inner_vectors = opt.visualize_inner_vectors
+        self.inner_vectors = {}
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
@@ -439,7 +461,21 @@ class CorrSubnet(nn.Module):
         ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
 
         attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
+        if self.visualize_inner_vectors:
+            self.inner_vectors["target_feature"] =tgt_feature
+            self.inner_vectors["ref_feature"] = ref_feature
+            self.inner_vectors["ref_value"] = ref_value
+            self.inner_vectors["conf_map"] = conf_map
+            self.inner_vectors["attention"] = attention
+            self.inner_vectors["non_local_block_out"] = out
+
         return attention, conf_map, out
 
     def actvn(self, x):
         return F.leaky_relu(x, 2e-1)
+
+    def get_inner_vectors(self):
+        return {**self.inner_vectors, **self.non_local_blk.get_inner_vectors()}
+
+    def get_weights(self):
+        return self.non_local_blk.get_weights()

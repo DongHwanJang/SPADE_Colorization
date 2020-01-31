@@ -34,6 +34,9 @@ class Pix2PixTrainer():
         self.conf_map = None
         self.data = None
 
+        if opt.visualize_weights:
+            self.latest_weights = {}
+
         if opt.isTrain:
             self.optimizer_G, self.optimizer_D = \
                 self.pix2pix_model_on_one_gpu.create_optimizers(opt)
@@ -231,6 +234,12 @@ class Pix2PixTrainer():
 
     def get_latest_image(self):
         pass
+
+    def get_weights(self):
+        return self.pix2pix_model.get_weights()
+
+    def get_inner_vectors(self):
+        return self.pix2pix_model.get_inner_vectors()
 
     def update_learning_rate(self, epoch):
         self.update_learning_rate(epoch)

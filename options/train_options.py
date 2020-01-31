@@ -33,7 +33,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
         parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
         parser.add_argument('--use_wandb', action='store_true', help='Use Weights and Biases')
-
+        parser.add_argument('--visualize_weights', action='store_true', help='Visualize weights from the model')
+        parser.add_argument('--visualize_inner_vectors', action='store_true', help='Visualize intermediary features')
 
 
         # the default values for beta1 and beta2 differ by TTUR option

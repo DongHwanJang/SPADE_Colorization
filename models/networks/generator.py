@@ -28,6 +28,11 @@ class SPADEGenerator(BaseNetwork):
         self.opt = opt
         nf = opt.ngf
 
+        self.visualize_inner_vectors = opt.visualize_inner_vectors
+        self.inner_vectors = {}
+
+        self.visualize_weights = opt.visualize_weights
+
         self.sw, self.sh = self.compute_latent_vector_size(opt)
 
         if opt.use_vae:
@@ -59,6 +64,10 @@ class SPADEGenerator(BaseNetwork):
         self.conv_img = nn.Conv2d(final_nc, 2, 3, padding=1)
 
         self.up = nn.Upsample(scale_factor=2)
+
+    def get_weights(self):
+        corr_subnet_weights = self.corr_subnet.get_weights()
+        return corr_subnet_weights
 
     def compute_latent_vector_size(self, opt):
         if opt.num_upsampling_layers == 'normal':
@@ -92,10 +101,35 @@ class SPADEGenerator(BaseNetwork):
             x = F.interpolate(tgt_value, size=(self.sh, self.sw))
             x = self.fc(x)
 
+        if self.visualize_inner_vectors:
+            self.inner_vectors["decoder_input"] = x
+
+        # self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)
+        #
+        # self.G_middle_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)
+        # self.G_middle_1 = SPADEResnetBlock(16 * nf, 16 * nf, opt)
+        #
+        # self.up_0 = SPADEResnetBlock(16 * nf, 8 * nf, opt)
+        # self.up_1 = SPADEResnetBlock(8 * nf, 4 * nf, opt)
+        # self.up_2 = SPADEResnetBlock(4 * nf, 2 * nf, opt)
+        # self.up_3 = SPADEResnetBlock(2 * nf, 1 * nf, opt)
+
+
+
         x = self.head_0(x, tgt_value, conf_map)
 
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock1"] = x
+
         x = self.up(x)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock2"] = x
+
         x = self.G_middle_0(x, tgt_value, conf_map)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock3"] = x
 
         if self.opt.num_upsampling_layers == 'more' or \
            self.opt.num_upsampling_layers == 'most':
@@ -103,23 +137,52 @@ class SPADEGenerator(BaseNetwork):
 
         x = self.G_middle_1(x, tgt_value, conf_map)
 
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock4"] = x
+
         x = self.up(x)
         x = self.up_0(x, tgt_value, conf_map)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock5"] = x
+
         x = self.up(x)
         x = self.up_1(x, tgt_value, conf_map)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock6"] = x
+
         x = self.up(x)
         x = self.up_2(x, tgt_value, conf_map)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock7"] = x
+
         x = self.up(x)
         x = self.up_3(x, tgt_value, conf_map)
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["SPADE_Resblock7"] = x
 
         if self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
             x = self.up_4(x, tgt_value, conf_map)
 
+            if self.visualize_inner_vectors:
+                self.inner_vectors["SPADE_Resblock8"] = x
+
         x = self.conv_img(F.leaky_relu(x, 2e-1))
+
+        if self.visualize_inner_vectors:
+            self.inner_vectors["final_layer"] = x
+
         x = torch.tanh(x)
 
         return x, attention, conf_map
+
+    def get_inner_vectors(self):
+        weights_list = [self.inner_vectors]
+        return {**self.inner_vectors, **self.corr_subnet.get_inner_vectors()}
 
 
 class Pix2PixHDGenerator(BaseNetwork):
@@ -184,3 +247,9 @@ class Pix2PixHDGenerator(BaseNetwork):
 
     def forward(self, input, z=None):
         return self.model(input)
+
+    def get_inner_vectors(self):
+        return self.model.get_inner_vectors()
+
+    def get_weights(self):
+        return self.model.get_weights()

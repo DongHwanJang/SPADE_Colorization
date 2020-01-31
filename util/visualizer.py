@@ -126,6 +126,16 @@ class Visualizer():
                     webpage.add_images(ims[num:], txts[num:], links[num:], width=self.win_size)
             webpage.save()
 
+    def display_inner_vectors(self, inner_vectors_dict, step):
+        for label, features in inner_vectors_dict.itesm():
+            if self.use_wandb:
+                self.wandb.log({label:features}, step=step)
+
+    def display_weights(self, weights_dict, step):
+        for label, weights in weights_dict.itesm():
+            if self.use_wandb:
+                self.wandb.log({label:weights}, step=step)
+
     # errors: dictionary of error labels and values
     def plot_current_errors(self, errors, step):
 

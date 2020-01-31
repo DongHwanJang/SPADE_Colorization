@@ -117,3 +117,6 @@ class SPADE(nn.Module):
             out = self.mlp_conv(concat_map)
 
         return out
+
+    def get_weights(self):
+        return {"shared_conv":self.mlp_shared.weight}

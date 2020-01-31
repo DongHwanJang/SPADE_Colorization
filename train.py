@@ -59,8 +59,7 @@ for epoch in iter_counter.training_epochs():
                                         losses, iter_counter.time_per_iter)
         visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
-        # if iter_counter.needs_displaying():
-        if True:
+        if iter_counter.needs_displaying():
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('conf_map', trainer.get_latest_conf_map()),
                                    ('attention_map', trainer.get_latest_attention()),
@@ -73,6 +72,14 @@ for epoch in iter_counter.training_epochs():
                                    ('reference_LAB', data_i['reference_LAB']),
                                    ])
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
+
+            if opt.visualize_weights:
+                print("visualizing weights")
+                visualizer.display_weights(trainer.get_weights(), iter_counter.total_steps_so_far)
+
+            if opt.visualize_inner_vectors:
+                print("visualizing vectors")
+                visualizer.display_inner_vectors(trainer.get_inner_vectors(), iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():
             print('saving the latest model (epoch %d, total_steps %d)' %
