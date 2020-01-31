@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import torch
 import cv2
 from util import util
-
+from torch import autograd
 
 class Pix2PixTrainer():
     """
@@ -43,6 +43,9 @@ class Pix2PixTrainer():
         self.optimizer_G.zero_grad()
         g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
         g_loss = sum(g_losses.values()).mean()
+
+        # with autograd.detect_anomaly():
+        #     g_loss.backward()
         g_loss.backward()
         self.optimizer_G.step()
         self.g_losses = g_losses

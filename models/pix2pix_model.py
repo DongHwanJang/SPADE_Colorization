@@ -202,6 +202,7 @@ class Pix2PixModel(torch.nn.Module):
 
         if not self.opt.no_vgg_loss:
             G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB) * self.opt.lambda_vgg
+            # pass
 
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
