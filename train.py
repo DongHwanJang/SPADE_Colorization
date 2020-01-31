@@ -41,9 +41,12 @@ for epoch in iter_counter.training_epochs():
         iter_counter.record_one_iteration()
 
         # to run reconstruction loss, set reference_LAB = target_LAB
-        if i % opt.reconstruction_period == 0:
+        if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
             data_i["reference_LAB"] = data_i["target_LAB"].clone().detach()
             data_i["is_reconstructing"] = True
+
+        if not opt.use_reconstruction_loss or i % opt.reconstruction_period != 0:
+            data_i["is_reconstructing"] = False
 
         # Training
         # train generator

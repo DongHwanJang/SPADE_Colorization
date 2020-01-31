@@ -81,8 +81,7 @@ class Pix2pixDataset(BaseDataset):
                       'target_LAB': target_lab,
                       'reference_LAB': reference_lab,
                       'target_L_gray_image': target_L_gray_image,
-                      "similarity": similarity,
-                      'is_reconstructing': False}
+                      "similarity": similarity}
 
         return input_dict
 

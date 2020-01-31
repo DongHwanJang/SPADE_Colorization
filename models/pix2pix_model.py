@@ -26,8 +26,9 @@ class Pix2PixModel(torch.nn.Module):
 
         self.netG, self.netD, self.netE = self.initialize_networks(opt)
 
-        opt.wandb.watch(self.netG, log="all")
-        opt.wandb.watch(self.netD, log="all")
+        if opt.use_wandb:
+            opt.wandb.watch(self.netG, log="all")
+            opt.wandb.watch(self.netD, log="all")
 
         # set loss functions
         if opt.isTrain:
