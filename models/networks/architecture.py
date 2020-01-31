@@ -363,14 +363,19 @@ class VGGFeatureExtractor(nn.Module):
         return F.leaky_relu(x, 2e-1)
 
 class NonLocalBlock(nn.Module):
-    def __init__(self, in_dim):
+    def __init__(self, opt, in_dim):
         super(NonLocalBlock, self).__init__()
+
+
 
         self.register_buffer('tau', torch.FloatTensor([0.01]))
         self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
+
+        self.use_gamma = opt.use_gamma
+        if self.use_gamma:
+            self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
 
         self.softmax = nn.Softmax(dim=-1)
 
@@ -415,7 +420,8 @@ class NonLocalBlock(nn.Module):
         out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
         out = out.view(B, C_value, H_query, W_query)
 
-        out = self.gamma * out + value
+        if self.use_gamma:
+            out = self.gamma * out + value
 
         attention = attention.view(B, H_query, W_query, H_key, W_key)
 
@@ -428,7 +434,7 @@ class CorrSubnet(nn.Module):
         # create vgg Model
         self.vgg_feature_extracter = VGGFeatureExtractor(opt)
 
-        self.non_local_blk = NonLocalBlock(256)
+        self.non_local_blk = NonLocalBlock(opt, 256)
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input

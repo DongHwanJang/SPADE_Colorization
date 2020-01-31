@@ -62,8 +62,7 @@ for epoch in iter_counter.training_epochs():
                                         losses, iter_counter.time_per_iter)
         visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
-        # if iter_counter.needs_displaying():
-        if True:
+        if iter_counter.needs_displaying():
             visuals = OrderedDict([('input_label', data_i['label']),
                                    ('conf_map', trainer.get_latest_conf_map()),
                                    ('attention_map', trainer.get_latest_attention()),

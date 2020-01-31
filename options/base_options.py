@@ -12,7 +12,6 @@ import models
 import data
 import pickle
 
-
 class BaseOptions():
     def __init__(self):
         self.initialized = False
