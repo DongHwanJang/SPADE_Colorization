@@ -78,13 +78,15 @@ class Visualizer():
                 # Create a Summary value
                 img_summaries.append(self.tf.Summary.Value(tag=label, image=img_sum))
 
+            # Create and write Summary
+            summary = self.tf.Summary(value=img_summaries)
+            self.writer.add_summary(summary, step)
+
         if self.use_wandb:
             for label, image_numpy in visuals.items():
                 self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
 
-            # Create and write Summary
-            summary = self.tf.Summary(value=img_summaries)
-            self.writer.add_summary(summary, step)
+
 
         if self.use_html: # save images to a html file
             for label, image_numpy in visuals.items():
@@ -127,14 +129,14 @@ class Visualizer():
             webpage.save()
 
     def display_inner_vectors(self, inner_vectors_dict, step):
-        for label, features in inner_vectors_dict.itesm():
+        for label, features in inner_vectors_dict.items():
             if self.use_wandb:
-                self.wandb.log({label:features}, step=step)
+                self.wandb.log({label:features.cpu()}, step=step)
 
     def display_weights(self, weights_dict, step):
         for label, weights in weights_dict.itesm():
             if self.use_wandb:
-                self.wandb.log({label:weights}, step=step)
+                self.wandb.log({label:weights.cpu()}, step=step)
 
     # errors: dictionary of error labels and values
     def plot_current_errors(self, errors, step):
@@ -150,7 +152,6 @@ class Visualizer():
             for tag, value in errors.items():
                 value = value.mean().float()
                 self.wandb.log({tag: value}, step=step)
-
 
     # errors: same format as |errors| of plotCurrentErrors
     def print_current_errors(self, epoch, i, errors, t):

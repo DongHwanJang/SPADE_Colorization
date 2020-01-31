@@ -85,7 +85,7 @@ class SPADEGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, tgt, ref, z=None):
+    def forward(self, tgt, ref, z=None, visualize_weights=False, visualize_inner_vectors=False):
         # Assume that input = (tgt, ref)  # changes to get each as input variable
         attention, conf_map, tgt_value = self.corr_subnet(tgt, ref)
 
@@ -178,7 +178,15 @@ class SPADEGenerator(BaseNetwork):
 
         x = torch.tanh(x)
 
-        return x, attention, conf_map
+        inner_vectors_dict = None
+        if visualize_inner_vectors:
+            inner_vectors_dict = self.get_inner_vectors()
+
+        weights_dict = None
+        if visualize_weights:
+            weights_dict = self.get_weights()
+
+        return x, attention, conf_map, weights_dict, inner_vectors_dict
 
     def get_inner_vectors(self):
         weights_list = [self.inner_vectors]

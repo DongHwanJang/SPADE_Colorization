@@ -49,8 +49,8 @@ class SPADEResnetBlock(nn.Module):
             self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
     def get_weights(self):
-        return {"first_spade_shared_conv": self.norm_0.get_weights,
-                "last_conv": self.conv_1.weights}
+        return {"first_spade_shared_conv": self.norm_0.get_weights()["shared_conv"],
+                "last_conv": self.conv_1.weight.data}
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
@@ -431,12 +431,12 @@ class NonLocalBlock(nn.Module):
         return attention, conf_map, out
 
     def get_inner_vectors(self):
-        return [self.inner_vectors]
+        return self.inner_vectors
 
-    def get_inner_vectors(self):
+    def get_weights(self):
         return {
-            "query_conv":self.query_conv.weight,
-            "key_conv":self.key_conv.weight,
+            "query_conv":self.query_conv.weight.data,
+            "key_conv":self.key_conv.weight.data,
             "gamma":self.gamma
         }
 

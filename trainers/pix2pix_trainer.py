@@ -44,7 +44,7 @@ class Pix2PixTrainer():
 
     def run_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
-        g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
+        g_losses, generated, attention, conf_map, weights_dict, inner_vector_dict = self.pix2pix_model(data, mode='generator')
         g_loss = sum(g_losses.values()).mean()
         g_loss.backward()
         self.optimizer_G.step()
@@ -53,6 +53,8 @@ class Pix2PixTrainer():
         self.attention = attention.detach().cpu()
         self.conf_map = conf_map.detach().cpu()
         self.data = data
+        self.inner_vectors = inner_vector_dict
+        self.weights = weights_dict
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
@@ -71,6 +73,12 @@ class Pix2PixTrainer():
     def get_latest_conf_map(self):
         # return self.conf_map.detach().cpu()
         return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
+
+    def get_latest_weights(self):
+        return self.weights
+
+    def get_latest_inner_vectors(self):
+        return self.inner_vectors
 
     def get_latest_warped_ref_img(self):
         ref_LAB = self.data["reference_LAB"][0].clone().detach()  # 3xHxW
@@ -234,12 +242,6 @@ class Pix2PixTrainer():
 
     def get_latest_image(self):
         pass
-
-    def get_weights(self):
-        return self.pix2pix_model.get_weights()
-
-    def get_inner_vectors(self):
-        return self.pix2pix_model.get_inner_vectors()
 
     def update_learning_rate(self, epoch):
         self.update_learning_rate(epoch)

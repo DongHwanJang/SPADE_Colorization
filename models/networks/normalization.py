@@ -119,4 +119,4 @@ class SPADE(nn.Module):
         return out
 
     def get_weights(self):
-        return {"shared_conv":self.mlp_shared.weight}
+        return {"shared_conv":self.mlp_shared.weight.data}
