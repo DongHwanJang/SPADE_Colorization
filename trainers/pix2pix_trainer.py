@@ -43,7 +43,7 @@ class Pix2PixTrainer():
         self.optimizer_G.zero_grad()
         g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
         g_losses['GAN'] *= 0.2  # adversarial loss
-        g_losses['GAN_Feat'] *= 2  # l1 loss
+        g_losses['GAN_Feat'] *= 2  # feature loss (with discriminator)  # FIXME
         g_losses['VGG'] *= 0.001  # perceptual loss
         g_losses['smoothness'] *= 5.0  # smoothness loss
         g_losses['reconstruction']  *= 0.1  # reconstruction loss  # FIXME
