@@ -259,14 +259,11 @@ class Pix2PixModel(torch.nn.Module):
     # channel-wise concatenates input (of G) and fake, input (of G) and real, then
     # concatenates the two again channelwise
     def discriminate(self, target_L, fake_LAB, target_LAB):
-        fake_concat = torch.cat([target_L, fake_LAB], dim=1)
-        real_concat = torch.cat([target_L, target_LAB], dim=1)
-
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate
         # statistics in fake and real images.
         # So both fake and real images are fed to D all at once.
-        fake_and_real = torch.cat([fake_concat, real_concat], dim=0)
+        fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
 
         discriminator_out = self.netD(fake_and_real)
 
