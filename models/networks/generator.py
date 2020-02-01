@@ -30,7 +30,8 @@ class SPADEGenerator(BaseNetwork):
 
         self.sw, self.sh = self.compute_latent_vector_size(opt)
 
-        if opt.use_vae:
+        # changed fc layers to fit z size()
+        if True:
             # In case of VAE, we will sample from random z vector
             self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
         else:
@@ -80,11 +81,12 @@ class SPADEGenerator(BaseNetwork):
         # Assume that input = (tgt, ref)  # changes to get each as input variable
         attention, conf_map, tgt_value = self.corr_subnet(tgt, ref)
 
-        if self.opt.use_vae:
+        # We don't want to input any information(ref or tgt) in the decoder
+        if True:
             # we sample z from unit normal and reshape the tensor
             if z is None:
-                z = torch.randn(input.size(0), self.opt.z_dim,
-                                dtype=torch.float32, device=input.get_device())
+                z = torch.randn(tgt.size(0), self.opt.z_dim,
+                                dtype=torch.float32, device=tgt.get_device())
             x = self.fc(z)
             x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
         else:

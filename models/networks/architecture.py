@@ -445,6 +445,9 @@ class CorrSubnet(nn.Module):
         ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
 
         attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
+
+        # change out
+        out = ref_value
         return attention, conf_map, out
 
     def actvn(self, x):
