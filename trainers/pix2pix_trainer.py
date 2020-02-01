@@ -42,6 +42,12 @@ class Pix2PixTrainer():
     def run_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
         g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
+        g_losses['GAN'] *= 0.2  # adversarial loss
+        g_losses['GAN_Feat'] *= 2  # feature loss (with discriminator)  # FIXME
+        g_losses['VGG'] *= 0.001  # perceptual loss
+        g_losses['smoothness'] *= 5.0  # smoothness loss
+        g_losses['reconstruction']  *= 0.1  # reconstruction loss  # FIXME
+        g_losses['contextual'] *= 0.2  # contextual loss
         g_loss = sum(g_losses.values()).mean()
 
         # with autograd.detect_anomaly():
