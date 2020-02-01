@@ -197,22 +197,22 @@ class Pix2PixModel(torch.nn.Module):
                 for j in range(num_intermediate_outputs):  # for each layer output
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
-                    GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
-            G_losses['GAN_Feat'] = GAN_Feat_loss
+                    GAN_Feat_loss += unweighted_loss / num_D
+            G_losses['GAN_Feat'] = GAN_Feat_loss * self.opt.lambda_feat
 
         if not self.opt.no_vgg_loss:
             G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB) * self.opt.lambda_vgg
             # pass
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB
+            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :]) * self.opt.lambda_smooth # put fake_AB
 
         # TODO is_reconstructing.size() is not 1 for the batch input case
         if is_reconstructing:
-            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
+            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB) * self.opt.lambda_recon
 
         if self.opt.use_contextual_loss:
-            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
+            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB) * self.opt.lambda_context
 
         return G_losses, fake_LAB, attention, conf_map
 
