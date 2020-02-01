@@ -9,6 +9,7 @@ import util.util as util
 from util.img_loader import lab_deloader
 from torchvision.transforms import functional as F
 from util import img_loader
+from util.fid import FID
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -29,6 +30,9 @@ class Pix2PixModel(torch.nn.Module):
         if opt.use_wandb:
             opt.wandb.watch(self.netG, log="all")
             opt.wandb.watch(self.netD, log="all")
+
+        if not opt.no_fid:
+            self.fid = FID()
 
         # set loss functions
         if opt.isTrain:
@@ -80,9 +84,11 @@ class Pix2PixModel(torch.nn.Module):
         target_L, target_AB = self.parse_LAB(target_LAB)
 
         if mode == 'generator':
-            g_loss, generated, attention, conf_map = self.compute_generator_loss(
-                target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=data["is_reconstructing"])
-            return g_loss, generated, attention, conf_map
+            g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
+                target_L, target_LAB, target_RGB, reference_LAB,
+                is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
+
+            return g_loss, generated, attention, conf_map, fid
         elif mode == 'discriminator':
             d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
             return d_loss
@@ -167,7 +173,7 @@ class Pix2PixModel(torch.nn.Module):
 
         return data['label'], data['image']
 
-    def compute_generator_loss(self, target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=False):
+    def compute_generator_loss(self, target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=False, get_fid=False):
         G_losses = {}
 
 
@@ -204,6 +210,10 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB) * self.opt.lambda_vgg
             # pass
 
+        fid = None
+        if get_fid:
+            fid = self.fid(target_RGB, fake_RGB)
+
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :]) * self.opt.lambda_smooth # put fake_AB
 
@@ -214,7 +224,8 @@ class Pix2PixModel(torch.nn.Module):
         if self.opt.use_contextual_loss:
             G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB) * self.opt.lambda_context
 
-        return G_losses, fake_LAB, attention, conf_map
+
+        return G_losses, fake_LAB, attention, conf_map, fid
 
     def compute_discriminator_loss(self, target_L, target_LAB, reference_LAB):
         D_losses = {}

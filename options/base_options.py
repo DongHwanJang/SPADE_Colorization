@@ -54,6 +54,8 @@ class BaseOptions():
         parser.add_argument('--display_winsize', type=int, default=400, help='display window size')
 
         # for generator
+        parser.add_argument("--no_fid", action="store_true", help="don't measure FID, measured for every single sample")
+        parser.add_argument('--fid_period', type=int, default=2, help='period to measure fid')
         parser.add_argument('--weight_root', type=str, default='./', help='declare the path for saving VGG weight')  # FIXME
         parser.add_argument('--ref_type', type=str, default='l', help='select type of input for reference image (l | ab | lab)')
         parser.add_argument('--netG', type=str, default='spade', help='selects model to use for netG (pix2pixhd | spade)')

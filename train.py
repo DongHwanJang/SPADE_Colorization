@@ -16,7 +16,8 @@ import wandb
 # parse options
 opt = TrainOptions().parse()
 if opt.use_wandb:
-    wandb.init(entity= "eccv2020_best_paper", project="SPADE Colorization", name=opt.name, resume=opt.continue_train, magic=True)
+    wandb.init(entity= "eccv2020_best_paper", project="SPADE Colorization", name=opt.name,
+               resume=opt.continue_train, magic=True)
     wandb.config.update(opt)
     opt.wandb = wandb
 
@@ -39,6 +40,13 @@ for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
+
+
+        if not opt.no_fid and i % opt.fid_period == 0:
+            data_i["get_fid"] = True
+
+        if opt.no_fid or i % opt.fid_period != 0:
+            data_i["get_fid"] = False
 
         # to run reconstruction loss, set reference_LAB = target_LAB
         if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
@@ -75,6 +83,9 @@ for epoch in iter_counter.training_epochs():
                                    ('reference_LAB', data_i['reference_LAB']),
                                    ])
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
+
+        if data_i["get_fid"]:
+            visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():
             print('saving the latest model (epoch %d, total_steps %d)' %
