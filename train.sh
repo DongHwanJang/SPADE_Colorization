@@ -1,1 +1,1 @@
-python train.py --use_reconstruction_loss --use_contextual_loss --tf_log
+python train.py --use_reconstruction_loss --use_contextual_loss --tf_log --name decoder_only --decoder_only --pair_file ./pair_img/train.txt --no_html --use_wandb --batchSize 10

@@ -92,32 +92,61 @@ class SPADEGenerator(BaseNetwork):
             x = F.interpolate(tgt_value, size=(self.sh, self.sw))
             x = self.fc(x)
 
-        x = self.head_0(x, tgt_value, conf_map)
+        if self.opt.decoder_only:
+            tgt_value = torch.zeros_like(tgt_value)  # rand_input for SPADE decoder
+            x = self.head_0(x, tgt_value, conf_map=None)
 
-        x = self.up(x)
-        x = self.G_middle_0(x, tgt_value, conf_map)
-
-        if self.opt.num_upsampling_layers == 'more' or \
-           self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
+            x = self.G_middle_0(x, tgt_value, conf_map=None)
 
-        x = self.G_middle_1(x, tgt_value, conf_map)
+            if self.opt.num_upsampling_layers == 'more' or \
+                    self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
 
-        x = self.up(x)
-        x = self.up_0(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_1(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_2(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_3(x, tgt_value, conf_map)
+            x = self.G_middle_1(x, tgt_value, conf_map=None)
 
-        if self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
-            x = self.up_4(x, tgt_value, conf_map)
+            x = self.up_0(x, tgt_value, conf_map=None)
+            x = self.up(x)
+            x = self.up_1(x, tgt_value, conf_map=None)
+            x = self.up(x)
+            x = self.up_2(x, tgt_value, conf_map=None)
+            x = self.up(x)
+            x = self.up_3(x, tgt_value, conf_map=None)
 
-        x = self.conv_img(F.leaky_relu(x, 2e-1))
-        x = torch.tanh(x)
+            if self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
+                x = self.up_4(x, tgt_value, conf_map=None)
+
+            x = self.conv_img(F.leaky_relu(x, 2e-1))
+            x = torch.tanh(x)
+        else:
+            x = self.head_0(x, tgt_value, conf_map)
+
+            x = self.up(x)
+            x = self.G_middle_0(x, tgt_value, conf_map)
+
+            if self.opt.num_upsampling_layers == 'more' or \
+               self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
+
+            x = self.G_middle_1(x, tgt_value, conf_map)
+
+            x = self.up(x)
+            x = self.up_0(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_1(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_2(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_3(x, tgt_value, conf_map)
+
+            if self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
+                x = self.up_4(x, tgt_value, conf_map)
+
+            x = self.conv_img(F.leaky_relu(x, 2e-1))
+            x = torch.tanh(x)
 
         return x, attention, conf_map
 

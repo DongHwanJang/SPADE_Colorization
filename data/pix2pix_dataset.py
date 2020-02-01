@@ -49,7 +49,8 @@ class Pix2pixDataset(BaseDataset):
 
         # randomly chose from top-n nearest reference
         similarity = numpy.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
-        reference_path = self.target_ref_dict[target_path][similarity]
+        # reference_path = self.target_ref_dict[target_path][similarity]
+        reference_path = self.target_paths[index]
 
         # target_LAB = lab_loader(self.opt, target_path, is_ref=False)
         # reference_LAB = lab_loader(self.opt, reference_path, is_ref=True)

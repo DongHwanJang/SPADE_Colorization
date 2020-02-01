@@ -60,8 +60,8 @@ class BaseOptions():
         parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in first conv layer')
         parser.add_argument('--init_type', type=str, default='xavier', help='network initialization [normal|xavier|kaiming|orthogonal]')
         parser.add_argument('--init_variance', type=float, default=0.02, help='variance of the initialization distribution')
-        parser.add_argument('--z_dim', type=int, default=256,
-                            help="dimension of the latent z vector")
+        parser.add_argument('--z_dim', type=int, default=256, help="dimension of the latent z vector")
+        parser.add_argument('--decoder_only', action='store_true', help='debug mode: test decoder without intermediate seg input')
 
         # for instance-wise features
         parser.add_argument('--no_instance', action='store_true', help='if specified, do *not* add instance map as input')

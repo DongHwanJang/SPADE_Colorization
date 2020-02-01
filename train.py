@@ -13,10 +13,12 @@ from trainers.pix2pix_trainer import Pix2PixTrainer
 import os
 import wandb
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 # parse options
 opt = TrainOptions().parse()
 if opt.use_wandb:
-    wandb.init(project="SPADE Colorization", name=opt.name, resume=opt.continue_train, magic=True)
+    wandb.init(project="SPADE Colorization", name=opt.name, resume=opt.continue_train, magic=True, entity="eccv2020_best_paper")
     wandb.config.update(opt)
     opt.wandb = wandb
 

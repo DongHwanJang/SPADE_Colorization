@@ -13,3 +13,4 @@ venv/
 *.png
 *.jpeg
 *.log
+train.sh
