@@ -259,7 +259,7 @@ class Pix2PixModel(torch.nn.Module):
     # channel-wise concatenates input (of G) and fake, input (of G) and real, then
     # concatenates the two again channelwise
     def discriminate(self, target_L, fake_LAB, target_RGB):
-        fake_RGB = img_loader.torch_lab2rgb(fake_LAB)
+        fake_RGB = img_loader.torch_lab2rgb(fake_LAB, normalize=True)
         #target_RGB = img_loader.torch_lab2rgb(target_LAB)
 
 

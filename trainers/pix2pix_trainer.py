@@ -48,7 +48,8 @@ class Pix2PixTrainer():
                          "smoothness":self.opt.lambda_smooth,
                          "reconstruction":self.opt.lambda_recon,
                          "contextual":self.opt.lambda_context,
-                         "KLD": self.opt.lambda_kld
+                         "KLD": self.opt.lambda_kld,
+                           "GAN": 1
                            }
 
         g_loss = 0
