@@ -42,7 +42,21 @@ class Pix2PixTrainer():
     def run_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
         g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
-        g_loss = sum(g_losses.values()).mean()
+
+        g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
+                         "VGG":self.opt.lambda_vgg,
+                         "smoothness":self.opt.lambda_smooth,
+                         "reconstruction":self.opt.lambda_recon,
+                         "contextual":self.opt.lambda_context,
+                         "KLD": self.opt.lambda_kld,
+                           "GAN": 1
+                           }
+
+        g_loss = 0
+        for key in g_losses:
+            g_loss+=g_losses[key] * g_losses_lambda[key]
+
+        #g_loss = sum(g_losses.values()).mean()
 
         # with autograd.detect_anomaly():
         #     g_loss.backward()
