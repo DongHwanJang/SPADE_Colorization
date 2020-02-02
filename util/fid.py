@@ -31,7 +31,7 @@ import torch
 from scipy import linalg
 from scipy.misc import imread
 from torch.nn.functional import adaptive_avg_pool2d
-from ..models.networks.inception import InceptionV3
+from models.networks.inception import InceptionV3
 # source: https://github.com/mseitzer/pytorch-fid/blob/master/fid_score.py
 
 class FID():
@@ -45,16 +45,11 @@ class FID():
 
         self.inception_net.eval()
 
-        num_images = RGB_tensors[0]
-
+        num_images = RGB_tensors.shape[0]
         if num_images > self.max_batch_size:
-            raise ValueError("number of images should be less than " + str(max_batch_size))
+            raise ValueError("number of images should be less than " + str(self.max_batch_size))
 
-        print(RGB_tensors.shape)
-        pred = self.inception_net(num_images)
-        print(pred.shape)
-        pred = pred[0]
-        print(pred.shape)
+        pred = self.inception_net(RGB_tensors)[0]
 
         # If model output is not scalar, apply global spatial average pooling.
         # This happens if you choose a dimensionality not equal 2048.
@@ -63,8 +58,8 @@ class FID():
 
         pred = pred.reshape(num_images, -1)
 
-        mu = np.mean(pred, axis=0)
-        sigma = np.cov(pred, rowvar=False)
+        mu = torch.mean(pred, axis=0).detach().cpu().numpy()
+        sigma = np.cov(pred.detach().cpu(), rowvar=False)
         return mu, sigma
 
     def calculate_frechet_distance(self, mu1, sigma1, mu2, sigma2, eps=1e-6):
@@ -123,4 +118,5 @@ class FID():
     def __call__(self, real_RGB, fake_RGB):
         real_mu, real_sigma = self.get_activations(real_RGB)
         fake_mu, fake_sigma = self.get_activations(fake_RGB)
-        return self.calculate_frechet_distance(real_mu, real_sigma, fake_mu, fake_sigma)
+        return self.calculate_frechet_distance(real_mu, real_sigma,
+                                               fake_mu, fake_sigma)

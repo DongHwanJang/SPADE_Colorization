@@ -41,7 +41,8 @@ class Pix2PixTrainer():
 
     def run_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
-        g_losses, generated, attention, conf_map = self.pix2pix_model(data, mode='generator')
+
+        g_losses, generated, attention, conf_map, fid = self.pix2pix_model(data, mode='generator')
 
         g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
                          "VGG":self.opt.lambda_vgg,
@@ -56,10 +57,6 @@ class Pix2PixTrainer():
         for key in g_losses:
             g_loss+=g_losses[key] * g_losses_lambda[key]
 
-        #g_loss = sum(g_losses.values()).mean()
-
-        # with autograd.detect_anomaly():
-        #     g_loss.backward()
         g_loss.backward()
         self.optimizer_G.step()
         self.g_losses = g_losses
@@ -67,6 +64,7 @@ class Pix2PixTrainer():
         self.attention = attention.detach().cpu()
         self.conf_map = conf_map.detach().cpu()
         self.data = data
+        self.fid = fid
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
@@ -107,23 +105,10 @@ class Pix2PixTrainer():
         warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
         warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
 
-        ###################################################
-        # TODO LAB color map test
-        # target_B = torch.zeros_like(target_L)
-        # target_A = torch.zeros_like(target_L)
-        #
-        # H = target_L.size()[-2]
-        # W = target_L.size()[-1]
-        #
-        # for j in range(0, H):
-        #     for i in range(0, W):
-        #         target_B[:, :, :, j] = 2*(float(j) / W) - 1
-        #         target_A[:, :, i, :] = 2*(float(i) / H) - 1
-        # warped_AB = torch.cat([target_A, target_B], dim=1)
-        ###################################################
-
         return torch.cat([target_L, warped_AB], dim=1)
 
+    def get_latest_fid(self):
+        return self.fid
 
     def get_latest_attention(self):
         """
