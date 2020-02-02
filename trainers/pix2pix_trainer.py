@@ -84,7 +84,10 @@ class Pix2PixTrainer():
         return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
 
     def get_latest_generated(self):
-        return {**self.generated, **self.d_pred}
+        return self.generated
+
+    def get_latest_discriminator_pred(self):
+        return self.d_pred
 
     def get_latest_conf_map(self):
         return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
