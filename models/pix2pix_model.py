@@ -90,8 +90,9 @@ class Pix2PixModel(torch.nn.Module):
 
             return g_loss, generated, attention, conf_map, fid
         elif mode == 'discriminator':
-            d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
-            return d_loss
+            pred_fake, pred_real = self.run_discriminator(target_L, target_LAB, reference_LAB)
+            d_loss = self.compute_discriminator_loss(pred_fake, pred_real)
+            return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
         # elif mode == 'encode_only':
         #     z, mu, logvar = self.encode_z(real_image)
         #     return mu, logvar
@@ -227,8 +228,7 @@ class Pix2PixModel(torch.nn.Module):
 
         return G_losses, fake_LAB, attention, conf_map, fid
 
-    def compute_discriminator_loss(self, target_L, target_LAB, reference_LAB):
-        D_losses = {}
+    def run_discriminator(self, target_L, target_LAB, reference_LAB):
         with torch.no_grad():
             fake_AB, _, _, _ = self.generate_fake(target_L, reference_LAB)
             fake_AB = fake_AB.detach()
@@ -237,6 +237,10 @@ class Pix2PixModel(torch.nn.Module):
 
         pred_fake, pred_real = self.discriminate(
             target_L, fake_LAB, target_LAB)
+        return pred_fake, pred_real
+
+    def compute_discriminator_loss(self, pred_fake, pred_real):
+        D_losses = {}
 
         D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
                                                for_discriminator=True)

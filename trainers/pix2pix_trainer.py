@@ -73,20 +73,20 @@ class Pix2PixTrainer():
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
-        d_losses = self.pix2pix_model(data, mode='discriminator')
+        d_pred_dict, d_losses = self.pix2pix_model(data, mode='discriminator')
         d_loss = sum(d_losses.values()).mean()
         d_loss.backward()
         self.optimizer_D.step()
         self.d_losses = d_losses
+        self.d_pred = d_pred_dict
 
     def get_latest_losses(self):
         return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
 
     def get_latest_generated(self):
-        return self.generated
+        return {**self.generated, **self.d_pred}
 
     def get_latest_conf_map(self):
-        # return self.conf_map.detach().cpu()
         return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
 
     def get_latest_warped_ref_img(self):
