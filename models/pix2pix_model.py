@@ -204,10 +204,10 @@ class Pix2PixModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
-            G_losses['GAN_Feat'] = GAN_Feat_loss * self.opt.lambda_feat
+            G_losses['GAN_Feat'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
-            G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB) * self.opt.lambda_vgg
+            G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB)
             # pass
 
         fid = None
@@ -215,14 +215,14 @@ class Pix2PixModel(torch.nn.Module):
             fid = self.fid(target_RGB, fake_RGB)
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :]) * self.opt.lambda_smooth # put fake_AB
+            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
         # TODO is_reconstructing.size() is not 1 for the batch input case
         if is_reconstructing:
-            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB) * self.opt.lambda_recon
+            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
 
         if self.opt.use_contextual_loss:
-            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB) * self.opt.lambda_context
+            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
 
 
         return G_losses, fake_LAB, attention, conf_map, fid
@@ -256,7 +256,7 @@ class Pix2PixModel(torch.nn.Module):
         # if self.opt.use_vae:
         #     z, mu, logvar = self.encode_z(real_image)
         #     if compute_kld_loss:
-        #         KLD_loss = self.KLDLoss(mu, logvar) * self.opt.lambda_kld
+        #         KLD_loss = self.KLDLoss(mu, logvar)
 
         # G forward during training
         fake_image, attention, conf_map = self.netG(target_L, reference_LAB, z=z)
