@@ -75,6 +75,8 @@ class Pix2pixDataset(BaseDataset):
         reference_rgb = F.normalize(F.to_tensor(reference_rgb_pil), mean=[0.485, 0.456, 0.406],
                                                 std=[0.229, 0.224, 0.225])
 
+
+        # Make target_image & reference_image exactly the same!
         input_dict = {'label': target_path,
                       'target_image': target_rgb,
                       'reference_image': target_rgb,

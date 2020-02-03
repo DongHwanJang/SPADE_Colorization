@@ -110,8 +110,8 @@ class SPADE(nn.Module):
         out = normalized * (1 + gamma) + beta
 
         # concatenate with confidence map and fit to output size
-        # TODO: make an option to select whether use confidence or not, rather using conf_map=None or not
-        if conf_map is not None:
+        # Do NOT use conf_map in the network
+        if False:
             conf_map = F.interpolate(conf_map, size=x.size()[2:], mode='nearest')
             concat_map = torch.cat([out, conf_map], dim=1)
             out = self.mlp_conv(concat_map)
