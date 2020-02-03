@@ -49,20 +49,24 @@ class Pix2PixTrainer():
                          "reconstruction":self.opt.lambda_recon,
                          "contextual":self.opt.lambda_context,
                          "KLD": self.opt.lambda_kld,
-                           "GAN": 1
-                           }
+                         "GAN": 1
+                         }
+
+        g_losses_with_lambda = {}
+        for key in g_losses:
+            g_losses_with_lambda[key + "_weighted"] = g_losses[key] * g_losses_lambda[key]
 
         g_loss = 0
-        for key in g_losses:
-            g_loss+=g_losses[key] * g_losses_lambda[key]
-
-        #g_loss = sum(g_losses.values()).mean()
+        for key in g_losses_with_lambda:
+            g_loss+= g_losses_with_lambda[key]
+        g_loss=g_loss.mean()
 
         # with autograd.detect_anomaly():
         #     g_loss.backward()
         g_loss.backward()
         self.optimizer_G.step()
         self.g_losses = g_losses
+        self.g_losses_with_lambda = g_losses_with_lambda
         self.generated = generated
         self.attention = attention.detach().cpu()
         self.conf_map = conf_map.detach().cpu()
@@ -77,7 +81,7 @@ class Pix2PixTrainer():
         self.d_losses = d_losses
 
     def get_latest_losses(self):
-        return {**self.g_losses, **self.d_losses}
+        return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
 
     def get_latest_generated(self):
         return self.generated

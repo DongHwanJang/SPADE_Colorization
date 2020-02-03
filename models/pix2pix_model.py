@@ -84,7 +84,7 @@ class Pix2PixModel(torch.nn.Module):
                 target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=data["is_reconstructing"])
             return g_loss, generated, attention, conf_map
         elif mode == 'discriminator':
-            d_loss = self.compute_discriminator_loss(target_L, target_RGB, reference_LAB)
+            d_loss = self.compute_discriminator_loss(target_L, target_LAB, reference_LAB)
             return d_loss
         # elif mode == 'encode_only':
         #     z, mu, logvar = self.encode_z(real_image)
@@ -182,7 +182,7 @@ class Pix2PixModel(torch.nn.Module):
         #     G_losses['KLD'] = KLD_loss
 
         # We let discriminator compare fake_LAB and target_LAB.
-        pred_fake, pred_real = self.discriminate(target_L, fake_LAB, target_RGB)
+        pred_fake, pred_real = self.discriminate(target_L, fake_LAB, target_LAB)
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
                                             for_discriminator=False)
@@ -209,14 +209,14 @@ class Pix2PixModel(torch.nn.Module):
 
         # TODO is_reconstructing.size() is not 1 for the batch input case
         if is_reconstructing:
-            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
+            G_losses["reconstruction"] = self.recodanstructionLoss(fake_LAB, reference_LAB)
 
         if self.opt.use_contextual_loss:
             G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
 
         return G_losses, fake_LAB, attention, conf_map
 
-    def compute_discriminator_loss(self, target_L, target_RGB, reference_LAB):
+    def compute_discriminator_loss(self, target_L, target_LAB, reference_LAB):
         D_losses = {}
         with torch.no_grad():
             fake_AB, _, _, _ = self.generate_fake(target_L, reference_LAB)
@@ -225,7 +225,7 @@ class Pix2PixModel(torch.nn.Module):
             fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
         pred_fake, pred_real = self.discriminate(
-            target_L, fake_LAB, target_RGB)
+            target_L, fake_LAB, target_LAB)
 
         D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
                                                for_discriminator=True)
@@ -258,16 +258,12 @@ class Pix2PixModel(torch.nn.Module):
     # for each fake and real image.
     # channel-wise concatenates input (of G) and fake, input (of G) and real, then
     # concatenates the two again channelwise
-    def discriminate(self, target_L, fake_LAB, target_RGB):
-        fake_RGB = img_loader.torch_lab2rgb(fake_LAB, normalize=True)
-        #target_RGB = img_loader.torch_lab2rgb(target_LAB)
-
-
+    def discriminate(self, target_L, fake_LAB, target_LAB):
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate
         # statistics in fake and real images.
         # So both fake and real images are fed to D all at once.
-        fake_and_real = torch.cat([fake_RGB, target_RGB], dim=0)
+        fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
 
         discriminator_out = self.netD(fake_and_real)
 
