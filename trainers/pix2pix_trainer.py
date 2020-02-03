@@ -56,6 +56,7 @@ class Pix2PixTrainer():
         for key in g_losses:
             g_loss+=g_losses[key] * g_losses_lambda[key]
 
+        g_loss=g_loss.mean()
         #g_loss = sum(g_losses.values()).mean()
 
         # with autograd.detect_anomaly():
