@@ -82,6 +82,8 @@ for epoch in iter_counter.training_epochs():
                                    ('target_LAB', data_i['target_LAB']),
                                    ('reference_LAB', data_i['reference_LAB']),
                                    ])
+            visuals = {**visuals, **trainer.get_latest_discriminator_pred()}
+
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
         if data_i["get_fid"]:
