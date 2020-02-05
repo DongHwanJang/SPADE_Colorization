@@ -76,9 +76,9 @@ class SPADEGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, tgt, ref, z=None):
+    def forward(self, tgt, ref_rgb, ref_l=None, z=None):
         # Assume that input = (tgt, ref)  # changes to get each as input variable
-        attention, conf_map, tgt_value = self.corr_subnet(tgt, ref)
+        attention, conf_map, tgt_value = self.corr_subnet(tgt, ref_rgb, ref_l)
 
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor

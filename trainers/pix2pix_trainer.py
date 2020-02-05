@@ -104,7 +104,7 @@ class Pix2PixTrainer():
 
         ref_AB = F.interpolate(
             ref_AB, size=(H_key, W_key)) # 1 x 3 x H_key x W_key
-        ref_AB=ref_AB.squeeze(0) # 2xH_keyxW_key
+        ref_AB = ref_AB.squeeze(0) # 2xH_keyxW_key
         ref_AB = ref_AB.view(2, -1) # 2 x N_key
 
         attention = self.attention[0].view(H_query, W_query, -1) # H_query x W_query x N_key

@@ -41,7 +41,6 @@ for epoch in iter_counter.training_epochs():
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
 
-
         if not opt.no_fid and i % opt.fid_period == 0:
             data_i["get_fid"] = True
 

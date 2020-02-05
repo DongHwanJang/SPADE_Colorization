@@ -218,71 +218,6 @@ class VGG19BN_L(nn.Module):
         return out
 
 
-class VGG19BN_LAB(nn.Module):
-    def __init__(self, checkpoint, requires_grad=False):
-        super(VGG19BN_LAB, self).__init__()
-        vgg_pretrained = torchvision.models.vgg19_bn(pretrained=False)
-        vgg_pretrained.load_state_dict(checkpoint)
-
-        vgg_pretrained_features = vgg_pretrained.features
-
-        self.slice1_corr = nn.Sequential()
-        self.slice2_corr = nn.Sequential()
-        self.slice3_corr = nn.Sequential()
-        self.slice4_corr = nn.Sequential()
-        self.slice5_corr = nn.Sequential()
-
-        self.slice1 = nn.Sequential()
-        self.slice2 = nn.Sequential()
-        self.slice3 = nn.Sequential()
-        self.slice4 = nn.Sequential()
-        self.slice5 = nn.Sequential()
-
-        for x in range(13):
-            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(13, 20):
-            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(20, 33):
-            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(33, 46):
-            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
-
-        for x in range(3):
-            self.slice1.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(3, 10):
-            self.slice2.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(10, 17):
-            self.slice3.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(17, 30):
-            self.slice4.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(30, 43):
-            self.slice5.add_module(str(x), vgg_pretrained_features[x])
-
-        # if not requires_grad:
-        #     for param in self.parameters():
-        #         param.requires_grad = False
-
-    def forward(self, X, corr_feature=True):
-        if corr_feature:
-            h_relu1 = self.slice1_corr(X)
-            h_relu2 = self.slice2_corr(h_relu1)
-            h_relu3 = self.slice3_corr(h_relu2)
-            h_relu4 = self.slice4_corr(h_relu3)
-
-            out = [h_relu1, h_relu2, h_relu3, h_relu4]
-
-        else:
-            h_relu1 = self.slice1(X)
-            h_relu2 = self.slice2(h_relu1)
-            h_relu3 = self.slice3(h_relu2)
-            h_relu4 = self.slice4(h_relu3)
-            h_relu5 = self.slice5(h_relu4)
-
-            out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
-
-        return out
-
-
 class VGGFeatureExtractor(nn.Module):
     def __init__(self, opt):
         super(VGGFeatureExtractor, self).__init__()
@@ -290,8 +225,8 @@ class VGGFeatureExtractor(nn.Module):
         # create vgg Model
         self.opt = opt
         checkpoint_dir = "models/networks/checkpoint.pth.tar"
-        self.vgg_tar = VGG19BN_L(checkpoint_dir).cuda()
-        self.vgg_ref = VGG19BN().cuda()
+        self.vgg_l_as_rgb = VGG19BN_L(checkpoint_dir).cuda()
+        self.vgg_lab_as_rgb = VGG19BN().cuda()
 
         # create conv layers
         self.conv_2_2_0 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
@@ -309,6 +244,21 @@ class VGGFeatureExtractor(nn.Module):
                                              kernel_size=3, stride=2,
                                              padding=1, output_padding=1)
 
+        self.conv_2_2_0_ref = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.conv_2_2_1_ref = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
+        self.conv_3_2_0_ref = nn.Conv2d(256, 128, kernel_size=3, padding=1)
+        self.conv_3_2_1_ref = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv_4_2_0_ref = nn.Conv2d(512, 256, kernel_size=3, padding=1)
+        self.conv_4_2_1_ref = nn.ConvTranspose2d(256, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+        self.conv_5_2_0_ref = nn.ConvTranspose2d(512, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+        self.conv_5_2_1_ref = nn.ConvTranspose2d(256, 256,
+                                             kernel_size=3, stride=2,
+                                             padding=1, output_padding=1)
+
         # apply spectral norm if specified
         if 'spectral' in opt.norm_G:
             self.conv_2_2_0 = spectral_norm(self.conv_2_2_0)
@@ -319,8 +269,18 @@ class VGGFeatureExtractor(nn.Module):
             self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
             self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
             self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
+            self.conv_2_2_0_ref = spectral_norm(self.conv_2_2_0_ref)
+            self.conv_2_2_1_ref = spectral_norm(self.conv_2_2_1_ref)
+            self.conv_3_2_0_ref = spectral_norm(self.conv_3_2_0_ref)
+            self.conv_3_2_1_ref = spectral_norm(self.conv_3_2_1_ref)
+            self.conv_4_2_0_ref = spectral_norm(self.conv_4_2_0_ref)
+            self.conv_4_2_1_ref = spectral_norm(self.conv_4_2_1_ref)
+            self.conv_5_2_0_ref = spectral_norm(self.conv_5_2_0_ref)
+            self.conv_5_2_1_ref = spectral_norm(self.conv_5_2_1_ref)
 
         self.conv_concate = nn.Conv2d(256*4, 256, kernel_size=1)
+        self.conv_concate_ref = nn.Conv2d(256 * 4, 256, kernel_size=1)
+
         self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d(256))
         self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d(256))
         self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
@@ -330,23 +290,30 @@ class VGGFeatureExtractor(nn.Module):
         self.resblock_value_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
 
-    def forward(self, x, isValue=False, is_ref=True):
+    def forward(self, x, isValue=False, l_with_ab=True, is_ref=False):
+
+        if l_with_ab:
+            vgg_feature = self.vgg_lab_as_rgb(x, corr_feature=True)
+
+        else:
+            vgg_feature = self.vgg_l_as_rgb(x, corr_feature=True)
 
         if is_ref:
-            x = x[:, 0, :, :].unsqueeze(1).expand(-1, 3, -1, -1)
-            vgg_feature = self.vgg_ref(x, corr_feature=True)
+            vgg_feature[0] = self.conv_2_2_1_ref(self.actvn(self.conv_2_2_0_ref(vgg_feature[0])))
+            vgg_feature[1] = self.conv_3_2_1_ref(self.actvn(self.conv_3_2_0_ref(vgg_feature[1])))
+            vgg_feature[2] = self.conv_4_2_1_ref(self.actvn(self.conv_4_2_0_ref(vgg_feature[2])))
+            vgg_feature[3] = self.conv_5_2_1_ref(self.actvn(self.conv_5_2_0_ref(vgg_feature[3])))
+
+            x = torch.cat(vgg_feature, dim=1)
+            x = self.conv_concate_ref(x)
         else:
-            if self.opt.ref_type == 'l' and x.size()[1] == 1:
-                x = x.expand(-1, 3, -1, -1)
-            vgg_feature = self.vgg_tar(x, corr_feature=True)
+            vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
+            vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
+            vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
+            vgg_feature[3] = self.conv_5_2_1(self.actvn(self.conv_5_2_0(vgg_feature[3])))
 
-        vgg_feature[0] = self.conv_2_2_1(self.actvn(self.conv_2_2_0(vgg_feature[0])))
-        vgg_feature[1] = self.conv_3_2_1(self.actvn(self.conv_3_2_0(vgg_feature[1])))
-        vgg_feature[2] = self.conv_4_2_1(self.actvn(self.conv_4_2_0(vgg_feature[2])))
-        vgg_feature[3] = self.conv_5_2_1(self.actvn(self.conv_5_2_0(vgg_feature[3])))
-
-        x = torch.cat(vgg_feature, dim=1)
-        x = self.conv_concate(x)
+            x = torch.cat(vgg_feature, dim=1)
+            x = self.conv_concate(x)
 
         if not isValue:
             x = self.resblock_0(x)
@@ -438,11 +405,14 @@ class CorrSubnet(nn.Module):
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def forward(self, tgt, ref):
-        tgt_feature = self.vgg_feature_extracter(tgt, is_ref=False)
-        ref_feature = self.vgg_feature_extracter(ref, is_ref=True)
+    def forward(self, tgt, ref_rgb, ref_l=None):
+        tgt_feature = self.vgg_feature_extracter(tgt, l_with_ab=False, is_ref=False)
+        if ref_l is not None:
+            ref_feature = self.vgg_feature_extracter(ref_l, l_with_ab=False, is_ref=True)
+        else:
+            ref_feature = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, is_ref=True)
 
-        ref_value = self.vgg_feature_extracter(ref, isValue=True, is_ref=True)
+        ref_value = self.vgg_feature_extracter(ref_rgb, isValue=True, l_with_ab=True, is_ref=True)
 
         attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
         return attention, conf_map, out
