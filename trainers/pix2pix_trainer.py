@@ -45,7 +45,8 @@ class Pix2PixTrainer():
         g_losses['GAN'] *= 0.2  # adversarial loss
         g_losses['GAN_Feat'] *= 2  # feature loss (with discriminator)  # FIXME
         g_losses['VGG'] *= 0.001  # perceptual loss
-        g_losses['smoothness'] *= 5.0  # smoothness loss
+        if self.opt.use_smoothness_loss:
+            g_losses['smoothness'] *= 5.0  # smoothness loss
         g_losses['reconstruction']  *= 0.1  # reconstruction loss  # FIXME
         g_losses['contextual'] *= 0.2  # contextual loss
         g_loss = sum(g_losses.values()).mean()
