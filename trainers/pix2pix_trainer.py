@@ -47,7 +47,8 @@ class Pix2PixTrainer():
         g_losses['VGG'] *= 0.001  # perceptual loss
         if self.opt.use_smoothness_loss:
             g_losses['smoothness'] *= 5.0  # smoothness loss
-        g_losses['reconstruction']  *= 0.1  # reconstruction loss  # FIXME
+        if not g_losses['reconstruction'] is None:
+            g_losses['reconstruction']  *= 0.1  # reconstruction loss  # FIXME
         g_losses['contextual'] *= 0.2  # contextual loss
         g_loss = sum(g_losses.values()).mean()
 
