@@ -86,7 +86,7 @@ class NLayerDiscriminator(BaseNetwork):
         # An original SPADE discriminator calculates input_channel # with label_nc, wheter using instance, ...
         # We just use LAB(3) for input. Therefore the number of input channel should be 3 (which was 4 for LAB(3)+L(1) input)
         # TODO: modify it with opt
-        input_nc = 3
+        input_nc = 4
 
         norm_layer = get_nonspade_norm_layer(opt, opt.norm_D)
         sequence = [[nn.Conv2d(input_nc, nf, kernel_size=kw, stride=2, padding=padw),
