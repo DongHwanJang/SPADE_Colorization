@@ -140,7 +140,7 @@ def torch_lab2rgb(lab_image, normalize=False):
                         var_B.unsqueeze(1)], dim=1).clamp(EPSILON, 1.-EPSILON)
 
     if normalize:
-        out = util.denormalize(out)
+        out = util.normalize(out)
 
     assert not (torch.isnan(out.max()) or torch.isnan(out.min()))
 
