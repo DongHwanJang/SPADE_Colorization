@@ -242,3 +242,12 @@ class ContextualLoss(nn.Module):
         cx_loss = torch.mean(-torch.log(cx + 1e-5))
 
         return cx_loss
+
+
+class IndexLoss(nn.Module):
+    def __init__(self):
+        super(IndexLoss, self).__init__()
+
+    def forward(self, attention_softmax, index_map):
+        index_loss = None
+        return index_loss

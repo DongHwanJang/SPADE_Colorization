@@ -72,6 +72,39 @@ class Pix2PixTrainer():
         self.data = data
         self.fid = fid
 
+    def run_subnet_generator_one_step(self, data):
+        self.optimizer_G.zero_grad()
+
+        g_losses, generated, attention = self.pix2pix_model(data, mode='subnet_generator')
+
+        # g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
+        #                  "VGG":self.opt.lambda_vgg,
+        #                  "smoothness":self.opt.lambda_smooth,
+        #                  "reconstruction":self.opt.lambda_recon,
+        #                  "contextual":self.opt.lambda_context,
+        #                  "KLD": self.opt.lambda_kld,
+        #                  "GAN": 1
+        #                  }
+        #
+        # g_losses_with_lambda = {}
+        # for key in g_losses:
+        #     g_losses_with_lambda[key + "_weighted"] = g_losses[key] * g_losses_lambda[key]
+        #
+        # g_loss = 0
+        # for key in g_losses_with_lambda:
+        #     g_loss+= g_losses_with_lambda[key]
+        # g_loss=g_loss.mean()
+        #
+        # g_loss.backward()
+        # self.optimizer_G.step()
+        # self.g_losses = g_losses
+        # self.g_losses_with_lambda = g_losses_with_lambda
+        # self.generated = generated
+        # self.attention = attention.detach().cpu()
+        # self.conf_map = conf_map.detach().cpu()
+        # self.data = data
+        # self.fid = fid
+
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
         d_pred_dict, d_losses = self.pix2pix_model(data, mode='discriminator')
