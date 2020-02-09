@@ -189,7 +189,7 @@ class Pix2PixModel(torch.nn.Module):
         fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
         fake_LAB = torch.cat([target_L, fake_AB], dim=1)
-        fake_RGB = img_loader.torch_lab2rgb(fake_LAB, normalize=True)
+        fake_RGB = img_loader.torch_lab2rgb(fake_LAB)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
@@ -215,7 +215,7 @@ class Pix2PixModel(torch.nn.Module):
             # pass
         fid = None
         if get_fid:
-            fid = self.fid(target_RGB, fake_RGB)
+            fid = self.fid(target_RGB, util.normalize(fake_RGB))
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
