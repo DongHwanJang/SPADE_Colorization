@@ -341,7 +341,7 @@ class NonLocalBlock(nn.Module):
     def __init__(self, opt, in_dim):
         super(NonLocalBlock, self).__init__()
 
-        self.register_buffer('tau', torch.FloatTensor([0.01]))
+        self.register_buffer('tau', torch.FloatTensor([opt.tau]))
         self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)

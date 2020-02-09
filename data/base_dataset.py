@@ -44,7 +44,7 @@ def get_params(opt, size):
     return {'crop_pos': (x, y), 'flip': flip}
 
 
-def get_transform(opt, params, method=Image.BICUBIC, normalize=True, toTensor=True):
+def get_transform(opt, params, method=Image.BICUBIC, normalize=True, toTensor=True, isRef=False):
     transform_list = []
     if 'resize' in opt.preprocess_mode:
         osize = [opt.load_size, opt.load_size]
@@ -68,6 +68,10 @@ def get_transform(opt, params, method=Image.BICUBIC, normalize=True, toTensor=Tr
 
     if opt.isTrain and not opt.no_flip:
         transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
+
+    if isRef:
+        transform_list.append(transforms.RandomHorizontalFlip(p=0.7))
+        transform_list.append(transforms.RandomResizedCrop(opt.load_size, scale=(0.6, 1.0)))
 
     if toTensor:
         transform_list += [transforms.ToTensor()]
