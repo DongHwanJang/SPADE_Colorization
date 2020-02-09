@@ -68,6 +68,7 @@ class Pix2pixDataset(BaseDataset):
 
         ####### L in RGB
         target_L_gray_image = rgb_pil2l_as_rgb(target_rgb_pil, need_Tensor=True)
+        reference_L_gray_image = rgb_pil2l_as_rgb(reference_rgb_pil, need_Tensor=True)
 
         ####### RGB
         target_rgb = F.normalize(F.to_tensor(target_rgb_pil), mean=[0.485, 0.456, 0.406],
@@ -81,6 +82,7 @@ class Pix2pixDataset(BaseDataset):
                       'target_LAB': target_lab,
                       'reference_LAB': reference_lab,
                       'target_L_gray_image': target_L_gray_image,
+                      'reference_L_gray_image': reference_L_gray_image,
                       "similarity": similarity}
 
         return input_dict
