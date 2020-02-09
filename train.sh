@@ -1,1 +1,1 @@
-python train.py --use_reconstruction_loss --use_contextual_loss --tf_log
+python train.py --use_reconstruction_loss --use_contextual_loss --tf_log --pair_file pair_img/train.txt --use_wandb --no_fid --dataroot /data1/imagenet/
