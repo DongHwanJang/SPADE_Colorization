@@ -78,19 +78,25 @@ class Pix2PixModel(torch.nn.Module):
     # can't parallelize custom functions, we branch to different
     # routines based on |mode|.
     def forward(self, data, mode):
-        reference_LAB = data["reference_LAB"]
         target_LAB = data["target_LAB"]
+        reference_LAB = data["reference_LAB"]
         target_RGB = data["target_image"]
+        reference_RGB = data["reference_image"]
+        target_L_gray_image = data["target_L_gray_image"]
+        reference_L_gray_image = data["reference_L_gray_image"]
+
         target_L, target_AB = self.parse_LAB(target_LAB)
+        # reference_L, reference_AB = self.parse_LAB(reference_LAB)  # not used
 
         if mode == 'generator':
             g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
-                target_L, target_LAB, target_RGB, reference_LAB,
-                is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
+                target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
+                reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
 
             return g_loss, generated, attention, conf_map, fid
         elif mode == 'discriminator':
-            pred_fake, pred_real = self.run_discriminator(target_L, target_LAB, reference_LAB)
+            pred_fake, pred_real = self.run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
+                                                          target_LAB, reference_RGB)
             d_loss = self.compute_discriminator_loss(pred_fake, pred_real)
             return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
         # elif mode == 'encode_only':
@@ -98,7 +104,8 @@ class Pix2PixModel(torch.nn.Module):
         #     return mu, logvar
         elif mode == 'inference':
             with torch.no_grad():
-                fake_AB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
+                fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB,
+                                                                     reference_L_gray_image)
                 fake_LAB = torch.cat([target_L, fake_AB], dim=1)
             return fake_LAB
         else:
@@ -174,26 +181,23 @@ class Pix2PixModel(torch.nn.Module):
 
         return data['label'], data['image']
 
-    def compute_generator_loss(self, target_L, target_LAB, target_RGB, reference_LAB, is_reconstructing=False, get_fid=False):
+    def compute_generator_loss(self, target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
+                               reference_LAB, reference_RGB, is_reconstructing=False, get_fid=False):
         G_losses = {}
 
-
         # if not using VAE, this is just a forward pass of G
-        fake_AB, _, attention, conf_map = self.generate_fake(target_L, reference_LAB)
+        fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
         fake_LAB = torch.cat([target_L, fake_AB], dim=1)
-
-        fake_RGB = img_loader.torch_lab2rgb(fake_LAB, normalize=True)
+        fake_RGB = img_loader.torch_lab2rgb(fake_LAB)
 
         # if self.opt.use_vae:
         #     G_losses['KLD'] = KLD_loss
-
         # We let discriminator compare fake_LAB and target_LAB.
-        pred_fake, pred_real = self.discriminate(target_L, fake_LAB, target_LAB)
+        pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
                                             for_discriminator=False)
-
         # calculate feature matching loss with L1 distance
         if not self.opt.no_ganFeat_loss:
             num_D = len(pred_fake)
@@ -206,15 +210,12 @@ class Pix2PixModel(torch.nn.Module):
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
             G_losses['GAN_Feat'] = GAN_Feat_loss
-
         if not self.opt.no_vgg_loss:
             G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB)
             # pass
-
         fid = None
         if get_fid:
-            fid = self.fid(target_RGB, fake_RGB)
-
+            fid = self.fid(target_RGB, util.normalize(fake_RGB))
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
@@ -228,15 +229,14 @@ class Pix2PixModel(torch.nn.Module):
 
         return G_losses, fake_LAB, attention, conf_map, fid
 
-    def run_discriminator(self, target_L, target_LAB, reference_LAB):
+    def run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB):
         with torch.no_grad():
-            fake_AB, _, _, _ = self.generate_fake(target_L, reference_LAB)
+            fake_AB, _, _, _ = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
             fake_AB = fake_AB.detach()
             fake_AB.requires_grad_()
             fake_LAB = torch.cat([target_L, fake_AB], dim=1)
 
-        pred_fake, pred_real = self.discriminate(
-            target_L, fake_LAB, target_LAB)
+        pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
         return pred_fake, pred_real
 
     def compute_discriminator_loss(self, pred_fake, pred_real):
@@ -254,7 +254,7 @@ class Pix2PixModel(torch.nn.Module):
     #     z = self.reparameterize(mu, logvar)
     #     return z, mu, logvar
 
-    def generate_fake(self, target_L, reference_LAB, compute_kld_loss=False):
+    def generate_fake(self, target_L_gray_image, reference_RGB, reference_L_gray_image, compute_kld_loss=False):
         z = None
         KLD_loss = None
         # if self.opt.use_vae:
@@ -263,7 +263,11 @@ class Pix2PixModel(torch.nn.Module):
         #         KLD_loss = self.KLDLoss(mu, logvar)
 
         # G forward during training
-        fake_image, attention, conf_map = self.netG(target_L, reference_LAB, z=z)
+        if self.opt.ref_type == 'l':
+            fake_image, attention, conf_map = self.netG(target_L_gray_image, reference_RGB, ref_l=reference_L_gray_image, z=z)
+        else:
+            fake_image, attention, conf_map = self.netG(target_L_gray_image, reference_RGB, z=z)
+
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
 
@@ -273,7 +277,7 @@ class Pix2PixModel(torch.nn.Module):
     # for each fake and real image.
     # channel-wise concatenates input (of G) and fake, input (of G) and real, then
     # concatenates the two again channelwise
-    def discriminate(self, target_L, fake_LAB, target_LAB):
+    def discriminate(self, fake_LAB, target_LAB):
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate
         # statistics in fake and real images.
