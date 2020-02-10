@@ -13,30 +13,35 @@ To reproduce the results reported in the paper, you would need an NVIDIA DGX1 ma
 ## Specifics
 
 ### Main network
-- VGG perceptual loss
-input: normalized RGB
+- **VGG perceptual loss**
+  - input: normalized RGB
 
-- discriminator:
-input: LAB
+- **discriminator**
+  - input: LAB
 
-- smoothness loss:
-input: LAB
+- **smoothness loss**
+  - input: LAB
 
-- FID:
-input: RGB (not normalized)
+- **FID**
+  - input: RGB (not normalized)
 
 
 ### Subnet:
 
-- subnet:
+- **subnet**
   - input: LAB[256x256] (normalized?)
 
-- discriminator:
+- **discriminator**
+  - input:
 
-- FID:
+- **FID**
+  - input: RGB (not normalized)
 
-- smoothness:
+- **smoothness**
+  - input: LAB
 
-- softmax:
+- **softmax**
+  - input: raw attention from subnet
 
-- VGG:
+- **VGG**
+  - input: normalized RGB
