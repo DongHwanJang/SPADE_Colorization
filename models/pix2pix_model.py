@@ -118,6 +118,12 @@ class Pix2PixModel(torch.nn.Module):
 
             return g_loss, generated, attention
 
+        elif mode == 'subnet_discriminator':
+            pred_fake, pred_real = self.subnet_run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
+                                                          target_LAB, reference_RGB, reference_AB)
+            d_loss = self.subnet_compute_discriminator_loss(pred_fake, pred_real)
+            return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
+
         else:
             raise ValueError("|mode| is invalid")
 
@@ -244,35 +250,61 @@ class Pix2PixModel(torch.nn.Module):
         G_losses = {}
 
         # if not using VAE, this is just a forward pass of G
+        # fake_AB_resized = 1 x 2 x 64 x 64 | attention : N_key x N_query
         fake_AB_resized, attention = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_AB,
                                                                reference_L_gray_image)
+
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
         target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bicubic')
         fake_LAB_resized = torch.cat([target_L_resized, fake_AB_resized], dim=1)
         fake_RGB_resized = img_loader.torch_lab2rgb(fake_LAB_resized, normalize=True)
-
-        target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
         target_RGB_resized = F.interpolate(target_RGB, size=(64, 64), mode='bicubic')
-        pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
 
-        # G_losses=['softmax'] = None
+        # target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
+        # pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
+
+        # G_losses=['softmax'] = None  #FIXME
         G_losses['VGG'] = self.criterionVGG(fake_RGB_resized, target_RGB_resized)
-        G_losses['L1'] = self.criterionSubnet(fake_RGB_resized, target_RGB_resized)  #FIXME
-        # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
+        G_losses['L1'] = self.criterionSubnet(fake_RGB_resized, target_RGB_resized)
+        # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB  #FIXME
 
         return G_losses, fake_LAB_resized, attention
 
     def run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB):
         with torch.no_grad():
-            fake_AB, _, _, _ = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
+            fake_AB, _, _, _ = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
             fake_AB = fake_AB.detach()
             fake_AB.requires_grad_()
             fake_LAB = torch.cat([target_L, fake_AB], dim=1)
-
         pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
+
+        return pred_fake, pred_real
+
+    def subnet_run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB,
+                                 reference_AB):
+        with torch.no_grad():
+            fake_AB_resized, _ = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_AB, reference_L_gray_image)
+            fake_AB_resized = fake_AB_resized.detach()
+            fake_AB_resized.requires_grad_()
+
+            target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bicubic')
+            fake_LAB_resized = torch.cat([target_L_resized, fake_AB_resized], dim=1)
+            target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
+
+        pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
         return pred_fake, pred_real
 
     def compute_discriminator_loss(self, pred_fake, pred_real):
+        D_losses = {}
+
+        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
+                                               for_discriminator=True)
+        D_losses['D_real'] = self.criterionGAN(pred_real, True,
+                                               for_discriminator=True)
+
+        return D_losses
+
+    def subnet_compute_discriminator_loss(self, pred_fake, pred_real):
         D_losses = {}
 
         D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,

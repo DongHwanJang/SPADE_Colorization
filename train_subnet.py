@@ -71,9 +71,7 @@ for epoch in iter_counter.training_epochs():
 
         if iter_counter.needs_displaying():
             visuals = OrderedDict([('input_label', data_i['label']),
-                                   ('conf_map', trainer.get_latest_conf_map()),
                                    ('attention_map', trainer.get_latest_attention()),
-                                   ('warped_img_LAB', trainer.get_latest_warped_ref_img()),
                                    ('synthesized_image', trainer.get_latest_generated()),
                                    ('target_image', data_i['target_image']),
                                    ('reference_image', data_i['reference_image']),
