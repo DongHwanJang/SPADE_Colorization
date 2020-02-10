@@ -29,7 +29,7 @@ input: RGB (not normalized)
 ### Subnet:
 
 - subnet:
-input: LAB[256x256] (normalized?)
+  - input: LAB[256x256] (normalized?)
 
 - discriminator:
 
