@@ -1,11 +1,10 @@
 import numpy as np
 import PIL.Image as Image
 
-def get_subnet_images(opt, image):
+def get_subnet_images(opt, image, subnet_image_Size):
     """
     opt must have:
     - input_image_size
-    - subnet_image_size: output of subnet (default: 64x64)
     - crop_to_ref: use cropping from original image to create reference
     - crop_to_ref_size: size of cropping window
     - crop_to_target: crop from ref to create target
@@ -60,7 +59,7 @@ def get_subnet_images(opt, image):
 
     # create target used as GT for discriminator, perceptual, ... by resizing to the same resolution as the output of
     # correspondence subnet. Resizing should use bilinear
-    subnet_width = subnet_height = opt.subnet_image_size
+    subnet_width = subnet_height = subnet_image_Size
     ratio = width // subnet_width
 
     target_gt = target.resize((subnet_width, subnet_height), Image.BILINEAR)

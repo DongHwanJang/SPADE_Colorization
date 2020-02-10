@@ -29,13 +29,17 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--beta2', type=float, default=0.9, help='momentum term of adam')
         parser.add_argument('--no_TTUR', action='store_true', help='Use TTUR training scheme')
 
+        parser.add_argument("--crop_to_ref", action='store_true')
+        parser.add_argument('--crop_to_ref_size', type=int, default=256)
+        parser.add_argument("--crop_to_target", action='store_true')
+        parser.add_argument('--crop_to_target_size', type=int, default=180) # ~70% of 256x256
+        parser.add_argument("--flip_to_target", action='store_true')
+
         parser.add_argument('--use_gamma', action='store_true', help='parameterize how much attention will be applied')
         parser.add_argument('--use_smoothness_loss', action='store_true', help='Use smoothness loss')
         parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
         parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
         parser.add_argument('--use_wandb', action='store_true', help='Use Weights and Biases')
-
-
 
         # the default values for beta1 and beta2 differ by TTUR option
         opt, _ = parser.parse_known_args()
