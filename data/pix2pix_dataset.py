@@ -81,7 +81,7 @@ class Pix2pixDataset(BaseDataset):
 
         ####### subnet reconstruction loss
         subnet_args = {}
-        if self.train_subnet_only or (self.train_subnet and self.train_subnet_period % index == 0):
+        if self.train_subnet_only or (self.train_subnet and index % self.train_subnet_period == 0):
 
             (subnet_ref, ref_warp), (subnet_target, target_gt), (index_image, index_image_gt) =\
                 get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size)
@@ -99,8 +99,8 @@ class Pix2pixDataset(BaseDataset):
             subnet_index_gt_resized = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
                                       index_gt_tensor[:, :, 0]  # H x W
 
-            subnet_args["subnet_target_lab"] = subnet_target_lab
-            subnet_args["subnet_ref_lab"] = subnet_ref_lab
+            subnet_args["subnet_target_LAB"] = subnet_target_lab
+            subnet_args["subnet_ref_LAB"] = subnet_ref_lab
             subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
             subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
             subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
