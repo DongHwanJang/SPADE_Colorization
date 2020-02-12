@@ -4,7 +4,7 @@ from skimage.color import rgb2lab, lab2rgb
 from torchvision.transforms import functional as F
 import os
 import torch
-from util import util
+from util.util import normalize
 
 srgb_profile = ImageCms.createProfile("sRGB")
 lab_profile = ImageCms.createProfile("LAB")
@@ -140,7 +140,7 @@ def torch_lab2rgb(lab_image, normalize=False):
                         var_B.unsqueeze(1)], dim=1).clamp(EPSILON, 1.-EPSILON)
 
     if normalize:
-        out = util.normalize(out)
+        out = normalize(out)
 
     assert not (torch.isnan(out.max()) or torch.isnan(out.min()))
 
