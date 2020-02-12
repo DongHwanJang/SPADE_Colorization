@@ -7,7 +7,7 @@ import torch
 import models.networks as networks
 import util.util as util
 from util.img_loader import lab_deloader
-from torchvision.transforms import functional as F
+import torch.nn.functional as F
 from util import img_loader
 from util.fid import FID
 
@@ -84,10 +84,20 @@ class Pix2PixModel(torch.nn.Module):
         reference_RGB = data["reference_image"]
         target_L_gray_image = data["target_L_gray_image"]
         reference_L_gray_image = data["reference_L_gray_image"]
-        warped_target_LAB_resized_normalized = data["warped_target_LAB_resized_normalized"]
 
         target_L, _ = self.parse_LAB(target_LAB)
         _, reference_AB = self.parse_LAB(reference_LAB)
+
+        subnet_target_LAB = data["subnet_target_LAB"]
+        subnet_ref_LAB = data["subnet_ref_LAB"]
+        subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
+        subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
+
+        subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
+        _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
+
+        subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
+        subnet_index_gt_resized = data["subnet_index_gt_resized"]
 
         if mode == 'generator':
             g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
@@ -111,17 +121,19 @@ class Pix2PixModel(torch.nn.Module):
             return fake_LAB
 
         elif mode == 'subnet_generator':
-            g_loss, generated, attention = \
-                self.subnet_compute_generator_loss(target_L, target_L_gray_image, target_LAB,
-                                                   reference_L_gray_image, reference_RGB, reference_AB, warped_target_LAB_resized_normalized)
+            g_loss, generated, attention, generated_index = \
+                self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
+                                                   subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
+                                                   subnet_index_gt_resized)
 
-            return g_loss, generated, attention
+            return g_loss, generated, attention, generated_index
 
         elif mode == 'subnet_discriminator':
-            pred_fake, pred_real = self.subnet_run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
-                                                          target_LAB, reference_RGB, reference_AB)
-            d_loss = self.subnet_compute_discriminator_loss(pred_fake, pred_real)
-            return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
+            subnet_pred_fake, subnet_pred_real =\
+                self.subnet_run_discriminator(subnet_target_L, subnet_target_L_gray_image, subnet_ref_L_gray_image,
+                                              subnet_target_LAB, subnet_ref_AB)
+            d_loss = self.subnet_compute_discriminator_loss(subnet_pred_fake, subnet_pred_real)
+            return {"pred_fake": subnet_pred_fake, "pred_real": subnet_pred_real}, d_loss
 
         else:
             raise ValueError("|mode| is invalid")
@@ -241,47 +253,35 @@ class Pix2PixModel(torch.nn.Module):
         if self.opt.use_contextual_loss:
             G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
 
-
         return G_losses, fake_LAB, attention, conf_map, fid
 
-    def subnet_compute_generator_loss(self, target_L, target_L_gray_image,
-                                      reference_L_gray_image, reference_RGB, reference_AB, warped_target_LAB_resized_normalized):
-        """
+    def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
+                                      subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
+                                      subnet_index_gt_resized):
 
-        :param target_L:
-        :param target_L_gray_image:
-        :param target_LAB:
-        :param target_RGB:
-        :param reference_L_gray_image:
-        :param reference_RGB:
-        :param reference_AB:
-        :return:
-        """
         G_losses = {}
 
-        # if not using VAE, this is just a forward pass of G
-        # fake_AB_resized = 1 x 2 x 64 x 64 | attention : N_key x N_query
-        fake_AB_resized, attention = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_AB,
-                                                               reference_L_gray_image)
+        subnet_fake_AB_resized, attention, corr_map = self.subnet_generate_fake(subnet_target_L_gray_image,
+                                                                                subnet_ref_AB, subnet_ref_L_gray_image)
 
-        # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
-        target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bilinear')
-        fake_LAB_resized = torch.cat([target_L_resized, fake_AB_resized], dim=1)
-        fake_RGB_resized_normalized = img_loader.torch_lab2rgb(fake_LAB_resized, normalize=True)
+        target_L_resized = F.interpolate(subnet_target_L, size=(64, 64), mode='bilinear')
+        subnet_fake_LAB_resized = torch.cat([target_L_resized, subnet_fake_AB_resized], dim=1)
+        subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
 
         # target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
         # pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
 
-        # G_losses=['softmax'] = None  #FIXME
-        G_losses['VGG'] = self.criterionVGG(fake_RGB_resized_normalized, warped_target_LAB_resized_normalized)
-        G_losses['L1'] = self.criterionSubnet(fake_RGB_resized_normalized, warped_target_LAB_resized_normalized)
-        # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB  #FIXME
+        # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
+        G_losses['softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_resized)
+        G_losses['VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses['L1'] = self.criterionSubnet(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB  #TODO
 
-        return G_losses, fake_LAB_resized, attention
+        return G_losses, subnet_fake_LAB_resized, attention, torch.max(corr_map, dim=1)[1].unsqueeze(1)
 
     def run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB):
         with torch.no_grad():
-            fake_AB, _, _, _ = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
+            fake_AB, _, _, _ = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
             fake_AB = fake_AB.detach()
             fake_AB.requires_grad_()
             fake_LAB = torch.cat([target_L, fake_AB], dim=1)
@@ -289,19 +289,20 @@ class Pix2PixModel(torch.nn.Module):
 
         return pred_fake, pred_real
 
-    def subnet_run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB,
-                                 reference_AB):
+    def subnet_run_discriminator(self, subnet_target_L, subnet_target_L_gray_image, subnet_ref_L_gray_image,
+                                 subnet_target_LAB, subnet_ref_AB):
         with torch.no_grad():
-            fake_AB_resized, _ = self.subnet_generate_fake(target_L_gray_image, reference_RGB, reference_AB, reference_L_gray_image)
-            fake_AB_resized = fake_AB_resized.detach()
-            fake_AB_resized.requires_grad_()
+            subnet_fake_AB_resized, _, _ = self.subnet_generate_fake(subnet_target_L_gray_image, subnet_ref_AB,
+                                                                     subnet_ref_L_gray_image)
+            subnet_fake_AB_resized = subnet_fake_AB_resized.detach()
+            subnet_fake_AB_resized.requires_grad_()
 
-            target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bicubic')
-            fake_LAB_resized = torch.cat([target_L_resized, fake_AB_resized], dim=1)
-            target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
+            subnet_target_L_resized = F.interpolate(subnet_target_L, size=(64, 64), mode='bicubic')
+            subnet_fake_LAB_resized = torch.cat([subnet_target_L_resized, subnet_fake_AB_resized], dim=1)
+            subnet_target_LAB_resized = F.interpolate(subnet_target_LAB, size=(64, 64), mode='bicubic')
 
-        pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
-        return pred_fake, pred_real
+        subnet_pred_fake, subnet_pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_target_LAB_resized)
+        return subnet_pred_fake, subnet_pred_real
 
     def compute_discriminator_loss(self, pred_fake, pred_real):
         D_losses = {}
@@ -313,20 +314,16 @@ class Pix2PixModel(torch.nn.Module):
 
         return D_losses
 
-    def subnet_compute_discriminator_loss(self, pred_fake, pred_real):
+    def subnet_compute_discriminator_loss(self, subnet_pred_fake, subnet_pred_real):
+        # FIXME: identical with `compute_discriminator_loss`
         D_losses = {}
 
-        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
+        D_losses['D_Fake'] = self.criterionGAN(subnet_pred_fake, False,
                                                for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,
+        D_losses['D_real'] = self.criterionGAN(subnet_pred_real, True,
                                                for_discriminator=True)
 
         return D_losses
-
-    # def encode_z(self, real_image):
-    #     mu, logvar = self.netE(real_image)
-    #     z = self.reparameterize(mu, logvar)
-    #     return z, mu, logvar
 
     def generate_fake(self, target_L_gray_image, reference_RGB, reference_L_gray_image, compute_kld_loss=False):
         z = None
@@ -347,26 +344,22 @@ class Pix2PixModel(torch.nn.Module):
 
         return fake_image, KLD_loss, attention, conf_map
 
-    def subnet_generate_fake(self, target_L_gray_image, reference_RGB, reference_AB, reference_L_gray_image):
+    def subnet_generate_fake(self, subnet_target_L_gray_image, subnet_ref_AB, subnet_ref_L_gray_image):
         # G forward during training
-        if self.opt.ref_type == 'l':
-            attention = self.netG(target_L_gray_image, reference_RGB, ref_l=reference_L_gray_image,
-                                  subnet_only=True)
-        else:
-            attention = self.netG(target_L_gray_image, reference_RGB,
-                                  subnet_only=True)
+        attention, corr_map = self.netG(subnet_target_L_gray_image, ref_rgb=None, ref_l=subnet_ref_L_gray_image,
+                              subnet_only=True)
 
-        B, H_query, W_query, H_key, W_key = attention.size()
-        ref_AB = F.interpolate(reference_AB, size=(H_key, W_key), mode="bilinear")  # B x 2 x H_key x W_key
-        ref_AB = ref_AB.view(B, 2, -1)  # 1 x 2 x N_key
+        B, H_query, W_query, H_key, W_key = attention.size()  # corr_map: B x N_query x N_key
+        subnet_ref_AB = F.interpolate(subnet_ref_AB, size=(H_key, W_key), mode="bilinear")  # B x 2 x H_key x W_key
+        subnet_ref_AB = subnet_ref_AB.view(B, 2, -1)  # 1 x 2 x N_key
 
-        attention = attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
-        attention = attention.view(B, -1, H_key * W_key)  # N_query x N_key
-        attention = attention.permute(0, 2, 1)  # N_key x N_query
+        attention_warp = attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
+        attention_warp = attention_warp.view(B, -1, H_key * W_key)  # N_query x N_key
+        attention_warp = attention_warp.permute(0, 2, 1)  # N_key x N_query
 
-        warped_AB = torch.bmm(ref_AB, attention).view(B, 2, H_query, W_query)  # B x 2 x H_query x W_query
+        warped_AB = torch.bmm(subnet_ref_AB, attention_warp).view(B, 2, H_query, W_query)  # B x 2 x H_query x W_query
 
-        return warped_AB, attention
+        return warped_AB, attention, corr_map
 
     # Given fake and real image, return the prediction of discriminator
     # for each fake and real image.

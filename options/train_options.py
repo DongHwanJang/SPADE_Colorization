@@ -34,6 +34,10 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
         parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
         parser.add_argument('--use_wandb', action='store_true', help='Use Weights and Biases')
+        parser.add_argument('--train_subnet_only', action='store_true',
+                            help='whether to train only with correspondence subnet')
+        parser.add_argument('--train_subnet', action='store_true',
+                            help='whether to train full network with supplementary training')
 
 
 
@@ -43,7 +47,8 @@ class TrainOptions(BaseOptions):
             parser.set_defaults(beta1=0.5, beta2=0.999)
 
         parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
-        parser.add_argument('--D_steps_per_G', type=int, default=1, help='number of discriminator iterations per generator iterations.')
+        parser.add_argument('--D_steps_per_G', type=int, default=1,
+                            help='number of discriminator iterations per generator iterations.')
 
         # for discriminators
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in first conv layer')
@@ -57,7 +62,14 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--gan_mode', type=str, default='hinge', help='(ls|original|hinge)')
         parser.add_argument('--netD', type=str, default='multiscale', help='(n_layers|multiscale|image|sagan)')
         parser.add_argument('--lambda_kld', type=float, default=0.05)
+
         parser.add_argument('--reconstruction_period', type=int, default=2)
+        parser.add_argument('--train_subnet_period', type=int, default=2)
+        parser.add_argument('--subnet_load_size', type=int, default=256,
+                            help='Scale images to this size (for subnet only)')
+        parser.add_argument('--subnet_crop_size', type=int, default=64,
+                            help='Crop to the width of crop_size (for subnet only)')
+
         self.isTrain = True
 
         return parser

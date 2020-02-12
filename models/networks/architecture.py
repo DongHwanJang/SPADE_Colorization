@@ -381,24 +381,22 @@ class NonLocalBlock(nn.Module):
             proj_key = proj_key - torch.mean(proj_key, dim=2, keepdim=True)
             proj_key = F.normalize(proj_key, dim=1)
 
-        corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
+        corr_map = torch.bmm(proj_query, proj_key)  # transpose check | B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
 
-        conf_argmax = torch.histc(torch.max(corr_map, dim=2)[1],
-                                  bins=W_query * H_query,
-                                  min=0,
-                                  max=W_query * H_query - 1).cpu().numpy()
-        index = [(x, y) for x, y in zip(list(range(W_query * H_query)), conf_argmax)]
-        #print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
-
-        attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
+        conf_argmax = torch.max(corr_map, dim=2)[1]  # B x N_query (argmax)  # TODO: Not used now
+        attention = self.softmax(corr_map / self.tau)  # B x (N_query) x (N_key)
+        attention = attention.view(B, H_query, W_query, H_key, W_key)
 
         if subnet_only:
-            attention = attention.view(B, H_query, W_query, H_key, W_key)
-            return attention
+            # attention: B x H_query x W_query x H_key x W_key
+            # corr_map: B x N_query x N_key
+            corr_map = corr_map.view(B, H_query * W_query, H_key, W_key)  # B x N_query x H_key x W_key
+            return attention, corr_map
 
         else:
+
             _, C_value, _, _ = value.shape
 
             proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
@@ -408,8 +406,6 @@ class NonLocalBlock(nn.Module):
 
             if self.use_gamma:
                 out = self.gamma * out + value
-
-            attention = attention.view(B, H_query, W_query, H_key, W_key)
 
             return attention, conf_map, out
 
@@ -432,8 +428,8 @@ class CorrSubnet(nn.Module):
             ref_feature = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, input_type='reference')
 
         if subnet_only:
-            attention = self.non_local_blk(ref_feature, tgt_feature, subnet_only=subnet_only)
-            return attention
+            attention, corr_map = self.non_local_blk(ref_feature, tgt_feature, subnet_only=subnet_only)
+            return attention, corr_map
         else:
             ref_value = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, input_type='value')
             attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, value=ref_value, subnet_only=subnet_only)

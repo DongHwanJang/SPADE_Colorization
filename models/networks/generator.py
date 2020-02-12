@@ -81,8 +81,8 @@ class SPADEGenerator(BaseNetwork):
 
         if subnet_only:
             # x : fake_image, attention : N_query * N_key
-            attention = self.corr_subnet(tgt, ref_rgb, ref_l, subnet_only=subnet_only)
-            return attention
+            attention, corr_map = self.corr_subnet(tgt, ref_rgb, ref_l, subnet_only=subnet_only)
+            return attention, corr_map
 
         else:
             attention, conf_map, tgt_value = self.corr_subnet(tgt, ref_rgb, ref_l, subnet_only=subnet_only)

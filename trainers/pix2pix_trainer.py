@@ -75,13 +75,13 @@ class Pix2PixTrainer():
     def run_subnet_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
 
-        g_losses, generated, attention = self.pix2pix_model(data, mode='subnet_generator')
+        g_losses, generated, attention, generated_index = self.pix2pix_model(data, mode='subnet_generator')
 
         g_losses_lambda = {
+                         "softmax": 1,
                          "VGG": 1,
                          "L1": 1,
-                         "smoothness": 1,
-                         "softmax": 1,
+                         # "smoothness": 1,
                          }  # TODO
 
         g_losses_with_lambda = {}
@@ -90,18 +90,28 @@ class Pix2PixTrainer():
 
         g_loss = 0
         for key in g_losses_with_lambda:
-            g_loss+= g_losses_with_lambda[key]
-        g_loss=g_loss.mean()
+            g_loss += g_losses_with_lambda[key]
+        g_loss = g_loss.mean()
 
         g_loss.backward()
         self.optimizer_G.step()
         self.g_losses = g_losses
         self.g_losses_with_lambda = g_losses_with_lambda
-        self.generated = generated
+        self.subnet_generated = generated.detach().cpu()
+        self.subnet_index = generated_index.detach().cpu()
         self.attention = attention.detach().cpu()
         self.data = data
 
     def run_discriminator_one_step(self, data):
+        self.optimizer_D.zero_grad()
+        d_pred_dict, d_losses = self.pix2pix_model(data, mode='discriminator')
+        d_loss = sum(d_losses.values()).mean()
+        d_loss.backward()
+        self.optimizer_D.step()
+        self.d_losses = d_losses
+        self.d_pred = d_pred_dict
+
+    def run_subnet_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
         d_pred_dict, d_losses = self.pix2pix_model(data, mode='subnet_discriminator')
         d_loss = sum(d_losses.values()).mean()
@@ -116,6 +126,15 @@ class Pix2PixTrainer():
     def get_latest_generated(self):
         return self.generated
 
+    def get_subnet_latest_generated(self):
+        return self.subnet_generated
+
+    def get_subnet_latest_index(self):
+        output = torch.zeros_like(self.subnet_index).repeat(1, 3, 1, 1)
+        output[:, 0, :, :] = self.subnet_index[:, 0, :, :].clone().detach() % self.opt.subnet_crop_size
+        output[:, 1, :, :] = self.subnet_index[:, 0, :, :].clone().detach() // self.opt.subnet_crop_size
+        return output
+
     def get_latest_discriminator_pred(self):
         return self.d_pred
 
@@ -127,7 +146,6 @@ class Pix2PixTrainer():
         target_LAB = self.data["target_LAB"][0].clone().detach() # 3xHxW
         _, ref_AB = self.pix2pix_model_on_one_gpu.parse_LAB(ref_LAB) # FIXME output is unsqueezed for now... 1x2xHxW
         target_L, _ = self.pix2pix_model_on_one_gpu.parse_LAB(target_LAB) # 1x1xHxW
-
 
         B, H_query, W_query, H_key, W_key = self.attention.size()
 

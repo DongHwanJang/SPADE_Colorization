@@ -17,7 +17,7 @@ def get_subnet_images(opt, image, subnet_image_size):
     - crop_to_target_size: size of cropping window
     - flip_to_target: perform horizontal flipping
     """
-    height = width = opt.crop_size
+    height = width = opt.subnet_load_size
 
     # creat ref from original.
     # allowed transforms: crop and resize (bicubic)
@@ -31,7 +31,7 @@ def get_subnet_images(opt, image, subnet_image_size):
     center_width = ref.size[0] // 2
     center_height = ref.size[1] // 2
 
-    target_crop_width = target_crop_height = opt.crop_to_target_size
+    target_crop_width = target_crop_height = 200  # FIXME: randomly picked
 
     target = ref
     if opt.crop_to_target:
@@ -64,7 +64,7 @@ def get_subnet_images(opt, image, subnet_image_size):
 
     # create target used as GT for discriminator, perceptual, ... by resizing to the same resolution as the output of
     # correspondence subnet. Resizing should use bilinear
-    subnet_width = subnet_height = subnet_image_size
+    subnet_width = subnet_height = opt.subnet_crop_size
     ratio = width // subnet_width
 
     target_gt = target.resize((subnet_width, subnet_height), Image.BILINEAR)

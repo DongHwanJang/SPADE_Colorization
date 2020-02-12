@@ -24,10 +24,11 @@ class Pix2pixDataset(BaseDataset):
         self.target_paths = list(self.target_ref_dict.keys())[:opt.max_dataset_size]
         self.dataset_size = len(self.target_paths)
         self.top_n_reference = opt.top_n_reference
-        self.train_subnet = opt.train_subnet
-        if self.train_subnet:
-            self.train_subnet_period = opt.train_subnet_period
-        self.train_subnet_only = opt.train_Subnet_only
+        self.train_subnet_only = opt.train_subnet_only
+        if not self.train_subnet_only:
+            self.train_subnet = opt.train_subnet
+            if self.train_subnet:
+                self.train_subnet_period = opt.train_subnet_period
 
     # Must be over written.
     # return type: {target_path: [top1_reference_path, top2_reference_path, ...], ... }
@@ -79,19 +80,36 @@ class Pix2pixDataset(BaseDataset):
                                                 std=[0.229, 0.224, 0.225])
 
         ####### subnet reconstruction loss
+        subnet_target = None
+        subnet_ref = None
+        subnet_target_lab = None
+        subnet_ref_lab = None
+        subnet_target_L_gray_image = None
+        subnet_ref_L_gray_image = None
         subnet_warped_LAB_gt_resized = None
-        subnet_target_LAB = None
-        subnet_ref_LAB = None
         subnet_index_gt_resized = None
+
         train_subnet = False
         if self.train_subnet_only or (self.train_subnet and self.train_subnet_period % index == 0):
-            (ref, ref_warp), (target, target_gt), (index_image, index_image_gt) = get_subnet_images(target_rgb_pil)
-            subnet_warped_LAB_gt_resized = create_warpped_image(index_image, ref_warp, target_gt)
+            self.opt.crop_to_target = True  # FIXME
+            self.opt.flip_to_target = True  # FIXME
 
-            subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_LAB_gt_resized)
-            subnet_target_LAB = rgb_pil2lab_tensor(target)
-            subnet_ref_LAB = rgb_pil2lab_tensor(ref)
-            subnet_index_gt_resized = torch.from_numpy(np.array(index_image_gt).astype(np.uint8)).dtype(torch.uint8)
+            (subnet_ref, ref_warp), (subnet_target, target_gt), (index_image, index_image_gt) =\
+                get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size // 4)
+
+            subnet_warped_RGB_gt_resized = create_warpped_image(index_image_gt, ref_warp, target_gt)
+            subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_RGB_gt_resized)
+
+            subnet_target_lab = rgb_pil2lab_tensor(subnet_target)
+            subnet_ref_lab = rgb_pil2lab_tensor(subnet_ref)
+
+            subnet_target_L_gray_image = rgb_pil2l_as_rgb(subnet_target, need_Tensor=True)
+            subnet_ref_L_gray_image = rgb_pil2l_as_rgb(subnet_ref, need_Tensor=True)
+
+            index_gt_tensor = torch.from_numpy(np.array(index_image_gt).astype(np.int64))  # H x W x C
+            subnet_index_gt_resized = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
+                                      index_gt_tensor[:, :, 0]  # H x W
+
             train_subnet = True
 
         input_dict = {'label': target_path,
@@ -101,10 +119,17 @@ class Pix2pixDataset(BaseDataset):
                       'reference_LAB': reference_lab,
                       'target_L_gray_image': target_L_gray_image,
                       'reference_L_gray_image': reference_L_gray_image,
-                      "similarity": similarity,
+                      'similarity': similarity,
+
+                      # TODO : avoid duplicated dict
+                      # 'subnet_target_image': subnet_target,
+                      # 'subnet_ref_image': subnet_ref,
+                      'subnet_target_LAB': subnet_target_lab,
+                      'subnet_ref_LAB': subnet_ref_lab,
+                      'subnet_target_L_gray_image': subnet_target_L_gray_image,
+                      'subnet_ref_L_gray_image': subnet_ref_L_gray_image,
+
                       "subnet_warped_LAB_gt_resized": subnet_warped_LAB_gt_resized,
-                      "subnet_target_LAB": subnet_target_LAB,
-                      "subnet_ref_LAB": subnet_ref_LAB,
                       "subnet_index_gt_resized": subnet_index_gt_resized,
                       "is_train_subnet": train_subnet}
 

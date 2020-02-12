@@ -1,1 +1,2 @@
-python train.py --use_reconstruction_loss --use_contextual_loss --tf_log --pair_file pair_img/train.txt --use_wandb --no_fid --dataroot /data1/imagenet/
+export CUDA_VISIBLE_DEVICES=6
+python train.py --name train_l_l_general --use_reconstruction_loss --use_contextual_loss --tf_log --pair_file pair_img/train.txt --use_wandb --no_fid --dataroot /data1/imagenet/ --niter 100 --niter_decay 100 --batchSize 1 --ref_type l
