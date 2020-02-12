@@ -338,29 +338,34 @@ class VGGFeatureExtractor(nn.Module):
         return F.leaky_relu(x, 2e-1)
 
 class NonLocalBlock(nn.Module):
-    def __init__(self, opt, in_dim):
+    def __init__(self, opt, in_dim, subnet_only=False):
         super(NonLocalBlock, self).__init__()
 
         self.register_buffer('tau', torch.FloatTensor([0.01]))
         self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-
-        self.use_gamma = opt.use_gamma
-        if self.use_gamma:
-            self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
 
         self.softmax = nn.Softmax(dim=-1)
+
+        self.subnet_only = subnet_only
+
+        if not self.subnet_only:
+            self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+
+            self.use_gamma = opt.use_gamma
+            if self.use_gamma:
+                self.gamma = nn.Parameter(torch.rand(1).normal_(0.0, 0.02))
+
+
 
     """
     key = ref_feature
     query = tgt_feature
     value = ref_value (currently equal to ref_feature)
     """
-    def forward(self, key, query, value, unit_mult=True):
+    def forward(self, key, query, value=None, unit_mult=True, subnet_only=False):
         # B: mini batches, C: channels, W_key: width, H_key: height
         B, C_key, H_key, W_key = key.shape
-        _, C_value, _, _ = value.shape
         B, C_query, H_query, W_query = query.shape
 
         # B x C x H x W -> B x C x (H*W) -> B x N x C
@@ -376,30 +381,33 @@ class NonLocalBlock(nn.Module):
             proj_key = proj_key - torch.mean(proj_key, dim=2, keepdim=True)
             proj_key = F.normalize(proj_key, dim=1)
 
-        corr_map = torch.bmm(proj_query, proj_key)  # transpose check  B x N_query x N_key
-
-
-        conf_argmax = torch.histc(torch.max(corr_map, dim=2)[1],
-                                  bins=W_query * H_query,
-                                  min=0,
-                                  max=W_query * H_query - 1).cpu().numpy()
-        index = [(x, y) for x, y in zip(list(range(W_query * H_query)), conf_argmax)]
-        #print(sorted(index, key=lambda conf: conf[1], reverse=True)[:5])
-
-        attention = self.softmax( corr_map / self.tau )  # BX (N_query) X (N_key)
-        conf_map = torch.max(attention, dim=2)[0]  # B x N_query
+        corr_map = torch.bmm(proj_query, proj_key)  # transpose check | B x N_query x N_key
+        conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
-        proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
 
-        out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
-        out = out.view(B, C_value, H_query, W_query)
-
-        if self.use_gamma:
-            out = self.gamma * out + value
-
+        conf_argmax = torch.max(corr_map, dim=2)[1]  # B x N_query (argmax)  # TODO: Not used now
+        attention = self.softmax(corr_map / self.tau)  # B x (N_query) x (N_key)
         attention = attention.view(B, H_query, W_query, H_key, W_key)
 
-        return attention, conf_map, out
+        if subnet_only:
+            # attention: B x H_query x W_query x H_key x W_key
+            # corr_map: B x N_query x N_key
+            corr_map = corr_map.view(B, H_query * W_query, H_key, W_key)  # B x N_query x H_key x W_key
+            return attention, corr_map
+
+        else:
+
+            _, C_value, _, _ = value.shape
+
+            proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
+
+            out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
+            out = out.view(B, C_value, H_query, W_query)
+
+            if self.use_gamma:
+                out = self.gamma * out + value
+
+            return attention, conf_map, out
 
 class CorrSubnet(nn.Module):
     def __init__(self, opt):
@@ -412,17 +420,20 @@ class CorrSubnet(nn.Module):
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def forward(self, tgt, ref_rgb, ref_l=None):
+    def forward(self, tgt, ref_rgb, ref_l=None, subnet_only=False):
         tgt_feature = self.vgg_feature_extracter(tgt, l_with_ab=False, input_type='target')
         if ref_l is not None:
             ref_feature = self.vgg_feature_extracter(ref_l, l_with_ab=False, input_type='reference')
         else:
             ref_feature = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, input_type='reference')
 
-        ref_value = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, input_type='value')
-
-        attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, ref_value)
-        return attention, conf_map, out
+        if subnet_only:
+            attention, corr_map = self.non_local_blk(ref_feature, tgt_feature, subnet_only=subnet_only)
+            return attention, corr_map
+        else:
+            ref_value = self.vgg_feature_extracter(ref_rgb, l_with_ab=True, input_type='value')
+            attention, conf_map, out = self.non_local_blk(ref_feature, tgt_feature, value=ref_value, subnet_only=subnet_only)
+            return attention, conf_map, out
 
     def actvn(self, x):
         return F.leaky_relu(x, 2e-1)

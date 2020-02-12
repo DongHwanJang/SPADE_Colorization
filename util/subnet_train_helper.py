@@ -1,8 +1,6 @@
 import numpy as np
 import PIL.Image as Image
 from PIL import ImageCms
-from util.img_loader import rgb_pil2lab_tensor, torch_lab2rgb
-import torch
 
 srgb_profile = ImageCms.createProfile("sRGB")
 lab_profile = ImageCms.createProfile("LAB")
@@ -18,7 +16,6 @@ def get_subnet_images(opt, image, subnet_image_size):
     - crop_to_target: crop from ref to create target
     - crop_to_target_size: size of cropping window
     - flip_to_target: perform horizontal flipping
-
     """
     height = width = opt.crop_size
 

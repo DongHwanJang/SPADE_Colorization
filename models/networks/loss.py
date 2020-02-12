@@ -247,3 +247,14 @@ class ContextualLoss(nn.Module):
         cx_loss = torch.mean(-torch.log(cx + 1e-5))
 
         return cx_loss
+
+
+class IndexLoss(nn.Module):
+    def __init__(self):
+        super(IndexLoss, self).__init__()
+        self.loss = torch.nn.CrossEntropyLoss()
+
+    def forward(self, corr_map, index_map):
+        # index_map: B x H_key x W_key, corr_map: B x C(=N_query) x H_key x W_key
+        index_loss = self.loss(corr_map, index_map)
+        return index_loss

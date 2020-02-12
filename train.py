@@ -16,7 +16,7 @@ import wandb
 # parse options
 opt = TrainOptions().parse()
 if opt.use_wandb:
-    wandb.init(entity= "eccv2020_best_paper", project="SPADE Colorization", name=opt.name,
+    wandb.init(entity="eccv2020_best_paper", project="SPADE Colorization", name=opt.name,
                resume=opt.continue_train, magic=True)
     wandb.config.update(opt)
     opt.wandb = wandb
@@ -58,10 +58,16 @@ for epoch in iter_counter.training_epochs():
         # Training
         # train generator
         if i % opt.D_steps_per_G == 0:
-            trainer.run_generator_one_step(data_i)
+            if not opt.train_subnet_only:
+                trainer.run_generator_one_step(data_i)
+            if opt.train_subnet_only or data_i["is_train_subnet"]:
+                trainer.run_subnet_generator_one_step(data_i)
 
         # train discriminator
-        trainer.run_discriminator_one_step(data_i)
+        if not opt.train_subnet_only:
+            trainer.run_discriminator_one_step(data_i)
+        if opt.train_subnet_only or data_i["is_train_subnet"]:
+            trainer.run_subnet_discriminator_one_step(data_i)
 
         # Visualizations
         losses = trainer.get_latest_losses()
@@ -70,17 +76,33 @@ for epoch in iter_counter.training_epochs():
         visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
-            visuals = OrderedDict([('input_label', data_i['label']),
-                                   ('conf_map', trainer.get_latest_conf_map()),
-                                   ('attention_map', trainer.get_latest_attention()),
-                                   ('warped_img_LAB', trainer.get_latest_warped_ref_img()),
-                                   ('synthesized_image', trainer.get_latest_generated()),
-                                   ('target_image', data_i['target_image']),
-                                   ('reference_image', data_i['reference_image']),
-                                   ('target_L_gray_image', data_i['target_L_gray_image']),
-                                   ('target_LAB', data_i['target_LAB']),
-                                   ('reference_LAB', data_i['reference_LAB']),
-                                   ])
+            if opt.train_subnet_only or data_i["is_train_subnet"]:
+                visual_list = [('input_label', data_i['label']),
+                               ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
+                               ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']
+                                .unsqueeze(1).repeat(1, 3, 1, 1)),
+                               ('subnet_synthesized_image', trainer.get_subnet_latest_generated()),
+                               ('subnet_synthesized_index', trainer.get_subnet_latest_index()),
+                               ('target_image', data_i['target_image']),
+                               ('reference_image', data_i['reference_image']),
+                               ('subnet_target_L_gray_image', data_i['subnet_target_L_gray_image']),
+                               ('subnet_target_LAB', data_i['subnet_target_LAB']),
+                               ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
+                               ]
+            else:
+                visual_list = [('input_label', data_i['label']),
+                               ('conf_map', trainer.get_latest_conf_map()),
+                               ('attention_map', trainer.get_latest_attention()),
+                               ('warped_img_LAB', trainer.get_latest_warped_ref_img()),
+                               ('synthesized_image', trainer.get_latest_generated()),
+                               ('target_image', data_i['target_image']),
+                               ('reference_image', data_i['reference_image']),
+                               ('target_L_gray_image', data_i['target_L_gray_image']),
+                               ('target_LAB', data_i['target_LAB']),
+                               ('reference_LAB', data_i['reference_LAB']),
+                               ]
+
+            visuals = OrderedDict(visual_list)
             visuals = {**visuals, **trainer.get_latest_discriminator_pred()}
 
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
@@ -98,7 +120,7 @@ for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_end()
 
     if epoch % opt.save_epoch_freq == 0 or \
-       epoch == iter_counter.total_epochs:
+            epoch == iter_counter.total_epochs:
         print('saving the model at the end of epoch %d, iters %d' %
               (epoch, iter_counter.total_steps_so_far))
         trainer.save('latest')

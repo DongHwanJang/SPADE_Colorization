@@ -76,50 +76,57 @@ class SPADEGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, tgt, ref_rgb, ref_l=None, z=None):
+    def forward(self, tgt, ref_rgb, ref_l=None, z=None, subnet_only=False):
         # Assume that input = (tgt, ref)  # changes to get each as input variable
-        attention, conf_map, tgt_value = self.corr_subnet(tgt, ref_rgb, ref_l)
 
-        if self.opt.use_vae:
-            # we sample z from unit normal and reshape the tensor
-            if z is None:
-                z = torch.randn(input.size(0), self.opt.z_dim,
-                                dtype=torch.float32, device=input.get_device())
-            x = self.fc(z)
-            x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
+        if subnet_only:
+            # x : fake_image, attention : N_query * N_key
+            attention, corr_map = self.corr_subnet(tgt, ref_rgb, ref_l, subnet_only=subnet_only)
+            return attention, corr_map
+
         else:
-            # we downsample segmap and run convolution
-            x = F.interpolate(tgt_value, size=(self.sh, self.sw))
-            x = self.fc(x)
+            attention, conf_map, tgt_value = self.corr_subnet(tgt, ref_rgb, ref_l, subnet_only=subnet_only)
+            if self.opt.use_vae:
+                # we sample z from unit normal and reshape the tensor
+                if z is None:
+                    z = torch.randn(input.size(0), self.opt.z_dim,
+                                    dtype=torch.float32, device=input.get_device())
+                x = self.fc(z)
+                x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
+            else:
+                # we downsample segmap and run convolution
+                x = F.interpolate(tgt_value, size=(self.sh, self.sw))
+                x = self.fc(x)
 
-        x = self.head_0(x, tgt_value, conf_map)
+            x = self.head_0(x, tgt_value, conf_map)
 
-        x = self.up(x)
-        x = self.G_middle_0(x, tgt_value, conf_map)
-
-        if self.opt.num_upsampling_layers == 'more' or \
-           self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
+            x = self.G_middle_0(x, tgt_value, conf_map)
 
-        x = self.G_middle_1(x, tgt_value, conf_map)
+            if self.opt.num_upsampling_layers == 'more' or \
+               self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
 
-        x = self.up(x)
-        x = self.up_0(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_1(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_2(x, tgt_value, conf_map)
-        x = self.up(x)
-        x = self.up_3(x, tgt_value, conf_map)
+            x = self.G_middle_1(x, tgt_value, conf_map)
 
-        if self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
-            x = self.up_4(x, tgt_value, conf_map)
+            x = self.up_0(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_1(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_2(x, tgt_value, conf_map)
+            x = self.up(x)
+            x = self.up_3(x, tgt_value, conf_map)
 
-        x = self.conv_img(F.leaky_relu(x, 2e-1))
-        x = torch.tanh(x)
+            if self.opt.num_upsampling_layers == 'most':
+                x = self.up(x)
+                x = self.up_4(x, tgt_value, conf_map)
 
-        return x, attention, conf_map
+            x = self.conv_img(F.leaky_relu(x, 2e-1))
+            x = torch.tanh(x)
+
+            return x, attention, conf_map
+
 
 
 class Pix2PixHDGenerator(BaseNetwork):
