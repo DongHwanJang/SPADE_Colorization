@@ -10,6 +10,17 @@ To reproduce the results reported in the paper, you would need an NVIDIA DGX1 ma
 
 ---
 
+## Variable naming convention
+Varible name should be a combination one or more parts below:
+- `normalized` - normalized. If not indicated, then unnormalized
+- `pil` or `image` - `PIL.Image` object. If not indicated, then `torch.Tensor`
+- `subnet` - variable is for subnet, and should not be fed into the main network
+- `resized` - resized from original image size (default:`256x256`) to the size of the correspondence matrix (default:`64x64`) with `bilinear`
+- `warped` - warped output created according to the attention
+- `gt` - should be used as ground truth when calculating loss
+
+---
+
 ## Specifics
 
 ### Main network
@@ -27,7 +38,11 @@ To reproduce the results reported in the paper, you would need an NVIDIA DGX1 ma
 
 
 ### Subnet:
-
+- subnet_transformer: 
+  - input: `image` [wxh] PIL Image in RGB 
+  - output: `(ref[256x256], ref_warp[64x64]),(target[256x256], target_gt[64x64]),(index_image[256x256], index_image_warp[64x64])` all of them are `PIL.Image` in RGB
+    - we use indexes stored in `index_image_warp[64x64]` to index into `ref_warp[64x64]` and extract `AB` channels. For `L` channel, `L` from `target_gt[64x64]` is used.
+    
 - **subnet**
   - input:  `target_L`  & `reference_LAB` (256x256) normalized
 
