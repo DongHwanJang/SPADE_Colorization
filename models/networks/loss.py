@@ -179,6 +179,10 @@ class SmoothnessLoss(nn.Module):  # This does not nn.Module
 
         return error / (height * width)
 
+class TotalVariationLoss(nn.Module):
+    def forward(self, img):
+        return ( torch.sum(torch.abs(img[:, :, :, :-1] - img[:, :, :, 1:])) +
+        torch.sum(torch.abs(img[:, :, :-1, :] - img[:, :, 1:, :])))
 
 class ReconstructionLoss(nn.Module):
     def __init__(self):

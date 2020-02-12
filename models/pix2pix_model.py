@@ -47,7 +47,7 @@ class Pix2PixModel(torch.nn.Module):
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
-                self.smoothnessLoss = networks.SmoothnessLoss()
+                self.smoothnessLoss = networks.TotalVariationLoss()
             if opt.use_reconstruction_loss:
                 self.reconstructionLoss = networks.ReconstructionLoss()
             if opt.use_contextual_loss:
