@@ -10,6 +10,17 @@ To reproduce the results reported in the paper, you would need an NVIDIA DGX1 ma
 
 ---
 
+## Variable naming convention
+Varible name should be a combination one or more parts below:
+- `normalized` - normalized. If not indicated, then unnormalized
+- `pil` or `image` - `PIL.Image` object. If not indicated, then `torch.Tensor`
+- `subnet` - variable is for subnet, and should not be fed into the main network
+- `resized` - resized from original image size (default:`256x256`) to the size of the correspondence matrix (default:`64x64`) with `bilinear`
+- `warped` - warped output created according to the attention
+- `gt` - should be used as ground truth when calculating loss
+
+---
+
 ## Specifics
 
 ### Main network
