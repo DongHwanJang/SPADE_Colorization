@@ -82,8 +82,8 @@ def get_subnet_images(opt, image, subnet_image_size):
 def get_valid_center_coord(img_width, img_height, crop_width, crop_height):
     width_room = (img_width - crop_width)
     height_room = (img_height - crop_height)
-    center_x = np.randon.choice(range(width_room)) - crop_width // 2
-    center_y = np.randon.choice(range(height_room)) - crop_height // 2
+    center_x = np.random.choice(range(width_room)) - crop_width // 2
+    center_y = np.random.choice(range(height_room)) - crop_height // 2
     return (center_x, center_y)
 
 def create_warpped_image(index_image, warp_image, target_gt):

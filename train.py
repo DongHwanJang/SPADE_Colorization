@@ -47,6 +47,12 @@ for epoch in iter_counter.training_epochs():
         if opt.no_fid or i % opt.fid_period != 0:
             data_i["get_fid"] = False
 
+        if opt.train_subnet_only or (opt.train_subnet and i % opt.train_subnet_period == 0):
+            data_i["is_training_subnet"] = True
+
+        if not (opt.train_subnet_only or (opt.train_subnet and i % opt.train_subnet_period == 0)):
+            data_i["is_training_subnet"] = False
+
         # to run reconstruction loss, set reference_LAB = target_LAB
         if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
             data_i["reference_LAB"] = data_i["target_LAB"].clone().detach()
@@ -58,16 +64,18 @@ for epoch in iter_counter.training_epochs():
         # Training
         # train generator
         if i % opt.D_steps_per_G == 0:
-            if not opt.train_subnet_only:
-                trainer.run_generator_one_step(data_i)
-            if opt.train_subnet_only or data_i["is_train_subnet"]:
+            if opt.train_subnet_only or data_i["is_training_subnet"]:
                 trainer.run_subnet_generator_one_step(data_i)
+            else:
+                trainer.run_generator_one_step(data_i)
+
 
         # train discriminator
-        if not opt.train_subnet_only:
-            trainer.run_discriminator_one_step(data_i)
-        if opt.train_subnet_only or data_i["is_train_subnet"]:
+        if opt.train_subnet_only or data_i["is_training_subnet"]:
             trainer.run_subnet_discriminator_one_step(data_i)
+        else:
+            trainer.run_discriminator_one_step(data_i)
+
 
         # Visualizations
         losses = trainer.get_latest_losses()
@@ -77,7 +85,7 @@ for epoch in iter_counter.training_epochs():
 
         if iter_counter.needs_displaying():
             visual_list = [('input_label', data_i['label'])]
-            if opt.train_subnet_only or data_i["is_train_subnet"]:
+            if opt.train_subnet_only or data_i["is_training_subnet"]:
                 visual_list += [
                                ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
                                ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']
@@ -88,7 +96,7 @@ for epoch in iter_counter.training_epochs():
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
                                ]
-            if not opt.train_subnet_onlytrain_subnet_only:
+            else:
                 visual_list += [
                                ('conf_map', trainer.get_latest_conf_map()),
                                ('attention_map', trainer.get_latest_attention()),

@@ -7,7 +7,7 @@ import os
 import ntpath
 import time
 from . import util
-from . import html
+from . import renamed_html
 import scipy.misc
 import torch
 import torchvision.transforms as transforms
@@ -87,10 +87,11 @@ class Visualizer():
 
         if self.use_wandb:
             for label, image_numpy in visuals.items():
+                print(label + ": " + str(image_numpy.shape))
+                # if len(image_numpy.shape) >= 4:
+                #
+                #     image_numpy = image_numpy[0]
                 self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
-
-
-
 
         if self.use_html: # save images to a html file
             for label, image_numpy in visuals.items():

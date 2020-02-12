@@ -80,22 +80,11 @@ class Pix2pixDataset(BaseDataset):
                                                 std=[0.229, 0.224, 0.225])
 
         ####### subnet reconstruction loss
-        subnet_target = None
-        subnet_ref = None
-        subnet_target_lab = None
-        subnet_ref_lab = None
-        subnet_target_L_gray_image = None
-        subnet_ref_L_gray_image = None
-        subnet_warped_LAB_gt_resized = None
-        subnet_index_gt_resized = None
-
-        train_subnet = False
+        subnet_args = {}
         if self.train_subnet_only or (self.train_subnet and self.train_subnet_period % index == 0):
-            self.opt.crop_to_target = True  # FIXME
-            self.opt.flip_to_target = True  # FIXME
 
             (subnet_ref, ref_warp), (subnet_target, target_gt), (index_image, index_image_gt) =\
-                get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size // 4)
+                get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size)
 
             subnet_warped_RGB_gt_resized = create_warpped_image(index_image_gt, ref_warp, target_gt)
             subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_RGB_gt_resized)
@@ -110,7 +99,12 @@ class Pix2pixDataset(BaseDataset):
             subnet_index_gt_resized = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
                                       index_gt_tensor[:, :, 0]  # H x W
 
-            train_subnet = True
+            subnet_args["subnet_target_lab"] = subnet_target_lab
+            subnet_args["subnet_ref_lab"] = subnet_ref_lab
+            subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
+            subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
+            subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
+            subnet_args["subnet_index_gt_resized"] = subnet_index_gt_resized
 
         input_dict = {'label': target_path,
                       'target_image': target_rgb,
@@ -120,20 +114,9 @@ class Pix2pixDataset(BaseDataset):
                       'target_L_gray_image': target_L_gray_image,
                       'reference_L_gray_image': reference_L_gray_image,
                       'similarity': similarity,
+                      }
 
-                      # TODO : avoid duplicated dict
-                      # 'subnet_target_image': subnet_target,
-                      # 'subnet_ref_image': subnet_ref,
-                      'subnet_target_LAB': subnet_target_lab,
-                      'subnet_ref_LAB': subnet_ref_lab,
-                      'subnet_target_L_gray_image': subnet_target_L_gray_image,
-                      'subnet_ref_L_gray_image': subnet_ref_L_gray_image,
-
-                      "subnet_warped_LAB_gt_resized": subnet_warped_LAB_gt_resized,
-                      "subnet_index_gt_resized": subnet_index_gt_resized,
-                      "is_train_subnet": train_subnet}
-
-        return input_dict
+        return {**input_dict, **subnet_args}
 
     def __len__(self):
         return self.dataset_size
