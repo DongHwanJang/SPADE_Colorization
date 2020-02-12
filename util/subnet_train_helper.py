@@ -58,8 +58,8 @@ def get_subnet_images(opt, image, subnet_image_size):
 
     # apply the same transformations as target to index array
     if opt.crop_to_target:
-        index_image = index_image.crop((center_width - target_crop_width//2, center_height - target_crop_height//2,
-                center_width + target_crop_width//2, center_height + target_crop_height//2))
+        index_image = index_image.crop((center_x - target_crop_width//2, center_y - target_crop_height//2,
+                center_x + target_crop_width//2, center_y + target_crop_height//2))
 
     if opt.flip_to_target and is_flipping:
         index_image = index_image.transpose(Image.FLIP_LEFT_RIGHT)
@@ -82,8 +82,8 @@ def get_subnet_images(opt, image, subnet_image_size):
 def get_valid_center_coord(img_width, img_height, crop_width, crop_height):
     width_room = (img_width - crop_width)
     height_room = (img_height - crop_height)
-    center_x = np.random.choice(range(width_room)) - crop_width // 2
-    center_y = np.random.choice(range(height_room)) - crop_height // 2
+    center_x = crop_width // 2 + np.random.choice(range(width_room))
+    center_y = crop_height // 2 + np.random.choice(range(height_room))
     return (center_x, center_y)
 
 def create_warpped_image(index_image, warp_image, target_gt):
