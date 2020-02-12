@@ -9,67 +9,7 @@ from util.pca import pca
 import pickle
 import numpy as np
 import torchvision
-
-
-class VGG19BN_LAB(nn.Module):
-    def __init__(self, checkpoint, requires_grad=False):
-        super(VGG19BN_LAB, self).__init__()
-        vgg_pretrained = torchvision.models.vgg19_bn(pretrained=False)
-        vgg_pretrained.load_state_dict(checkpoint)
-
-        vgg_pretrained_features = vgg_pretrained.features
-
-        self.slice1_corr = nn.Sequential()
-        self.slice2_corr = nn.Sequential()
-        self.slice3_corr = nn.Sequential()
-        self.slice4_corr = nn.Sequential()
-        self.slice5_corr = nn.Sequential()
-
-        self.slice1 = nn.Sequential()
-        self.slice2 = nn.Sequential()
-        self.slice3 = nn.Sequential()
-        self.slice4 = nn.Sequential()
-        self.slice5 = nn.Sequential()
-        self.slice6 = nn.Sequential()
-
-        for x in range(13):
-            self.slice1_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(13, 20):
-            self.slice2_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(20, 33):
-            self.slice3_corr.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(33, 46):
-            self.slice4_corr.add_module(str(x), vgg_pretrained_features[x])
-
-        for x in range(3):
-            self.slice1.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(3, 10):
-            self.slice2.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(10, 17):
-            self.slice3.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(17, 30):
-            self.slice4.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(30, 43):
-            self.slice5.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(43, 52):
-            self.slice6.add_module(str(x), vgg_pretrained_features[x])
-
-        if not requires_grad:
-            for param in self.parameters():
-                param.requires_grad = False
-
-    def forward(self, x):
-        h_relu1 = self.slice1(x)
-        h_relu2 = self.slice2(h_relu1)
-        h_relu3 = self.slice3(h_relu2)
-        h_relu4 = self.slice4(h_relu3)
-        h_relu5 = self.slice5(h_relu4)
-        h_relu6 = self.slice6(h_relu5)
-
-        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5, h_relu6]
-
-        return out[-1]
-
+from models.networks.architecture import VGG19BN_L
 
 def pickle_save(model, target_folder, feature_folder):
     idx_folder = 0
@@ -123,14 +63,13 @@ def pickle_save(model, target_folder, feature_folder):
 
 if __name__ == '__main__':  # Test Mode
 
-    model_dict = torch.load('models/networks/checkpoint.pth.tar')['state_dict']
-    model = VGG19BN_LAB(model_dict)
+    model = VGG19BN_L('models/networks/checkpoint.pth.tar', requires_grad=False)
 
     model.cuda()
     # torch.save(model, 'model.pth')
 
-    target_folder = '../data/imagenet/train/'
-    feature_folder = '../data/imagenet_feature/'
+    target_folder = '/data1/imagenet/train/'
+    feature_folder = '/data1/imagenet_feature/'
     if not os.path.exists(feature_folder):
         os.makedirs(feature_folder, exist_ok=True)
 
