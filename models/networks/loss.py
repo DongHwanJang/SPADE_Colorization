@@ -179,6 +179,7 @@ class SmoothnessLoss(nn.Module):  # This does not nn.Module
 
         return error / (height * width)
 
+# source: https://towardsdatascience.com/pytorch-implementation-of-perceptual-losses-for-real-time-style-transfer-8d608e2e9902
 class TotalVariationLoss(nn.Module):
     def forward(self, img):
         return ( torch.sum(torch.abs(img[:, :, :, :-1] - img[:, :, :, 1:])) +
