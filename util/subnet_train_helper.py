@@ -1,10 +1,18 @@
 import numpy as np
 import PIL.Image as Image
+from PIL import ImageCms
+from util.img_loader import rgb_pil2lab_tensor, torch_lab2rgb
+import torch
 
-def get_subnet_images(opt, image, subnet_image_Size):
+srgb_profile = ImageCms.createProfile("sRGB")
+lab_profile = ImageCms.createProfile("LAB")
+rgb2lab_transform = ImageCms.buildTransformFromOpenProfiles(srgb_profile, lab_profile, "RGB", "LAB")
+lab2rgb_transform = ImageCms.buildTransformFromOpenProfiles(lab_profile, srgb_profile, "LAB", "RGB")
+
+def get_subnet_images(opt, image, subnet_image_size):
     """
     opt must have:
-    - input_image_size
+    - crop_size
     - crop_to_ref: use cropping from original image to create reference
     - crop_to_ref_size: size of cropping window
     - crop_to_target: crop from ref to create target
@@ -12,7 +20,7 @@ def get_subnet_images(opt, image, subnet_image_Size):
     - flip_to_target: perform horizontal flipping
 
     """
-    height = width = opt.input_image_size
+    height = width = opt.crop_size
 
     # creat ref from original.
     # allowed transforms: crop and resize (bicubic)
@@ -59,7 +67,7 @@ def get_subnet_images(opt, image, subnet_image_Size):
 
     # create target used as GT for discriminator, perceptual, ... by resizing to the same resolution as the output of
     # correspondence subnet. Resizing should use bilinear
-    subnet_width = subnet_height = subnet_image_Size
+    subnet_width = subnet_height = subnet_image_size
     ratio = width // subnet_width
 
     target_gt = target.resize((subnet_width, subnet_height), Image.BILINEAR)
@@ -71,40 +79,28 @@ def get_subnet_images(opt, image, subnet_image_Size):
 
     return (ref, ref_warp), (target,target_gt), (index_image, index_image_gt)
 
-def create_warpped_image(index_image, warp_image):
+def create_warpped_image(index_image, warp_image, target_gt):
+    # PIL.Image[width][height] ==> np.array[height][width][channel]
     # index_image[width][height][channel] this also holds when converting between arrays and images
-
+    # L, A, B
     width, height = index_image.size
     index_array = np.array(index_image).astype(np.uint8)
-    output_array = np.zeros((width,height,3)).astype(np.uint8)
-    warp_array = np.array(warp_image).astype(np.uint8)
+    output_array = np.zeros((height, width, 3)).astype(np.uint8)
+    warp_array = ImageCms.applyTransform(warp_image, rgb2lab_transform)
+    warp_array = np.array(warp_array).astype(np.uint8)
+    target_gt_array = np.array(target_gt).astype(np.uint8)
 
     for h in range(height):
         for w in range(width):
             x = index_array[h][w][0]
             y = index_array[h][w][1]
 
-            pixel = [warp_array[y][x][0], warp_array[y][x][1], warp_array[y][x][2]]
+            A, B = warp_array[y][x][1], warp_array[y][x][2]
 
-            output_array[h][w][0] = pixel[0]
-            output_array[h][w][1] = pixel[1]
-            output_array[h][w][2] = pixel[2]
+            output_array[h][w][0] = target_gt_array[h][w][0] # L
+            output_array[h][w][1] = A # A
+            output_array[h][w][2] = B # B
 
-    output_image = Image.fromarray(output_array)
+    output_image = Image.fromarray(output_array, mode="LAB")
+    output_image = ImageCms.applyTransform(output_image, lab2rgb_transform)
     return output_image
-
-if __name__ == '__main__':
-    image = Image.open("/DATA1/hksong/imagenet/train/n01440764/n01440764_8878.JPEG")
-    (ref, ref_warp), (target,target_gt), (index_image, index_image_gt) = get_subnet_images(None, image)
-
-    generated_warpped_image = create_warpped_image(index_image_gt, ref_warp)
-
-    out_path = "/home/minds/isaac/SPADE_Colorization/transform_images"
-
-    ref.save(out_path + "/ref" + ".JPEG")
-    ref_warp.save(out_path + "/ref_warp" + ".JPEG")
-    target.save(out_path + "/target" + ".JPEG")
-    target_gt.save(out_path + "/target_gt" + ".JPEG")
-    generated_warpped_image.save(out_path + "/generated_warpped_image" + ".JPEG")
-    index_image.save(out_path + "/index_image" + ".JPEG")
-    index_image_gt.save(out_path + "/index_image_gt" + ".JPEG")

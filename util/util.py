@@ -6,15 +6,13 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import re
 import importlib
 import torch
-from argparse import Namespace
 import numpy as np
 from PIL import Image
 import os
 import argparse
 import dill as pickle
-import util.coco
 import subprocess
-from util.img_loader import lab_deloader
+from util import img_loader
 
 
 def save_obj(obj, name):
@@ -29,7 +27,6 @@ def load_obj(name):
 # returns a configuration for creating a generator
 # |default_opt| should be the opt of the current experiment
 # |**kwargs|: if any configuration should be overriden, it can be specified here
-
 
 def copyconf(default_opt, **kwargs):
     conf = argparse.Namespace(**vars(default_opt))
@@ -109,7 +106,7 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False, lab=Fal
         image_numpy[0] = np.clip(image_numpy[0], 0, 100)
         image_numpy[1] = np.clip(image_numpy[1], -128, 128)
         image_numpy[2] = np.clip(image_numpy[2], -128, 128)
-        image_numpy = lab_deloader(image_numpy, np_output=True)
+        image_numpy = img_loader.lab_deloader(image_numpy, np_output=True)
     else:
         image_numpy = np.clip(image_numpy, 0, 255)
 
