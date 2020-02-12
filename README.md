@@ -27,7 +27,11 @@ To reproduce the results reported in the paper, you would need an NVIDIA DGX1 ma
 
 
 ### Subnet:
-
+- subnet_transformer: 
+  - input: `image` [wxh] PIL Image in RGB 
+  - output: `(ref[256x256], ref_warp[64x64]),(target[256x256], target_gt[64x64]),(index_image[256x256], index_image_warp[64x64])` all of them are `PIL.Image` in RGB
+    - we use indexes stored in `index_image_warp[64x64]` to index into `ref_warp[64x64]` and extract `AB` channels. For `L` channel, `L` from `target_gt[64x64]` is used.
+    
 - **subnet**
   - input:  `target_L`  & `reference_LAB` (256x256) normalized
 
