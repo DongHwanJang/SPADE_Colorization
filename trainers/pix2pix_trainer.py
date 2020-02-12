@@ -232,7 +232,7 @@ class Pix2PixTrainer():
 
             for j in range(np.max([0,y-window_sz_h//2]), np.min([H, y + window_sz_h//2])):
                 for k in range(np.max([0, x-window_sz_w//2]), np.min([W, x + window_sz_w//2])):
-                    temp_tensor[k][j]=min_value # be careful for the indexing order
+                    temp_tensor[j][k]=min_value # be careful for the indexing order
 
         return pts_lt
 
