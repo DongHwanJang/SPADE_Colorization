@@ -40,6 +40,9 @@ for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
     for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
+        if opt.train_subnet_only:
+
+        else:
 
         if not opt.no_fid and i % opt.fid_period == 0:
             data_i["get_fid"] = True
@@ -58,10 +61,17 @@ for epoch in iter_counter.training_epochs():
         # Training
         # train generator
         if i % opt.D_steps_per_G == 0:
-            trainer.run_subnet_generator_one_step(data_i)
+            if not opt.train_subnet_only:
+                trainer.run_generator_one_step(data_i)
+            if opt.train_subnet_only or data_i["is_train_subnet"]:
+                trainer.run_subnet_generator_one_step(data_i)
 
         # train discriminator
-        trainer.run_discriminator_one_step(data_i)
+        if not opt.train_subnet_only:
+            trainer.run_discriminator_one_step(data_i)
+        if opt.train_subnet_only or data_i["is_train_subnet"]:
+            trainer.run_subnet_discriminator_one_step(data_i)
+
 
         # Visualizations
         losses = trainer.get_latest_losses()

@@ -4,14 +4,12 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 
 from data.base_dataset import BaseDataset, get_params, get_transform
-from PIL import Image
-# import util.util as util
 from util.img_loader import lab_loader, rgb_loader, rgb_pil2l_as_rgb, rgb_pil2lab_tensor
 import os
-import numpy
 import numpy as np
-from skimage.color import rgb2lab, lab2rgb
 from torchvision.transforms import functional as F
+from util.subnet_train_helper import get_subnet_images, create_warpped_image
+import torch
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -26,6 +24,10 @@ class Pix2pixDataset(BaseDataset):
         self.target_paths = list(self.target_ref_dict.keys())[:opt.max_dataset_size]
         self.dataset_size = len(self.target_paths)
         self.top_n_reference = opt.top_n_reference
+        self.train_subnet = opt.train_subnet
+        if self.train_subnet:
+            self.train_subnet_period = opt.train_subnet_period
+        self.train_subnet_only = opt.train_Subnet_only
 
     # Must be over written.
     # return type: {target_path: [top1_reference_path, top2_reference_path, ...], ... }
@@ -48,7 +50,7 @@ class Pix2pixDataset(BaseDataset):
         target_path = self.target_paths[index]
 
         # randomly chose from top-n nearest reference
-        similarity = numpy.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
+        similarity = np.random.choice(range(self.top_n_reference), 1)[0] + 1  # top-n starts from 1 (not 0)
         reference_path = target_path
 
         # target_LAB = lab_loader(self.opt, target_path, is_ref=False)
@@ -76,6 +78,22 @@ class Pix2pixDataset(BaseDataset):
         reference_rgb = F.normalize(F.to_tensor(reference_rgb_pil), mean=[0.485, 0.456, 0.406],
                                                 std=[0.229, 0.224, 0.225])
 
+        ####### subnet reconstruction loss
+        subnet_warped_LAB_gt_resized = None
+        subnet_target_LAB = None
+        subnet_ref_LAB = None
+        subnet_index_gt_resized = None
+        train_subnet = False
+        if self.train_subnet_only or (self.train_subnet and self.train_subnet_period % index == 0):
+            (ref, ref_warp), (target, target_gt), (index_image, index_image_gt) = get_subnet_images(target_rgb_pil)
+            subnet_warped_LAB_gt_resized = create_warpped_image(index_image, ref_warp, target_gt)
+
+            subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_LAB_gt_resized)
+            subnet_target_LAB = rgb_pil2lab_tensor(target)
+            subnet_ref_LAB = rgb_pil2lab_tensor(ref)
+            subnet_index_gt_resized = torch.from_numpy(np.array(index_image_gt).astype(np.uint8)).dtype(torch.uint8)
+            train_subnet = True
+
         input_dict = {'label': target_path,
                       'target_image': target_rgb,
                       'reference_image': reference_rgb,
@@ -83,7 +101,12 @@ class Pix2pixDataset(BaseDataset):
                       'reference_LAB': reference_lab,
                       'target_L_gray_image': target_L_gray_image,
                       'reference_L_gray_image': reference_L_gray_image,
-                      "similarity": similarity}
+                      "similarity": similarity,
+                      "subnet_warped_LAB_gt_resized": subnet_warped_LAB_gt_resized,
+                      "subnet_target_LAB": subnet_target_LAB,
+                      "subnet_ref_LAB": subnet_ref_LAB,
+                      "subnet_index_gt_resized": subnet_index_gt_resized,
+                      "is_train_subnet": train_subnet}
 
         return input_dict
 

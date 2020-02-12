@@ -73,8 +73,6 @@ class Pix2PixModel(torch.nn.Module):
         else:
             raise ("Pass 3D or 4D tensor")
 
-
-
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module
     # can't parallelize custom functions, we branch to different
@@ -86,6 +84,7 @@ class Pix2PixModel(torch.nn.Module):
         reference_RGB = data["reference_image"]
         target_L_gray_image = data["target_L_gray_image"]
         reference_L_gray_image = data["reference_L_gray_image"]
+        warped_target_LAB_resized_normalized = data["warped_target_LAB_resized_normalized"]
 
         target_L, _ = self.parse_LAB(target_LAB)
         _, reference_AB = self.parse_LAB(reference_LAB)
@@ -113,8 +112,8 @@ class Pix2PixModel(torch.nn.Module):
 
         elif mode == 'subnet_generator':
             g_loss, generated, attention = \
-                self.subnet_compute_generator_loss(target_L, target_L_gray_image, target_LAB, target_RGB,
-                                                   reference_L_gray_image, reference_RGB, reference_AB)
+                self.subnet_compute_generator_loss(target_L, target_L_gray_image, target_LAB,
+                                                   reference_L_gray_image, reference_RGB, reference_AB, warped_target_LAB_resized_normalized)
 
             return g_loss, generated, attention
 
@@ -245,8 +244,19 @@ class Pix2PixModel(torch.nn.Module):
 
         return G_losses, fake_LAB, attention, conf_map, fid
 
-    def subnet_compute_generator_loss(self, target_L, target_L_gray_image, target_LAB, target_RGB,
-                                      reference_L_gray_image, reference_RGB, reference_AB):
+    def subnet_compute_generator_loss(self, target_L, target_L_gray_image,
+                                      reference_L_gray_image, reference_RGB, reference_AB, warped_target_LAB_resized_normalized):
+        """
+
+        :param target_L:
+        :param target_L_gray_image:
+        :param target_LAB:
+        :param target_RGB:
+        :param reference_L_gray_image:
+        :param reference_RGB:
+        :param reference_AB:
+        :return:
+        """
         G_losses = {}
 
         # if not using VAE, this is just a forward pass of G
@@ -255,17 +265,16 @@ class Pix2PixModel(torch.nn.Module):
                                                                reference_L_gray_image)
 
         # FIXME: where is the best place(=line) that concat gt luminance to generated_AB
-        target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bicubic')
+        target_L_resized = F.interpolate(target_L, size=(64, 64), mode='bilinear')
         fake_LAB_resized = torch.cat([target_L_resized, fake_AB_resized], dim=1)
-        fake_RGB_resized = img_loader.torch_lab2rgb(fake_LAB_resized, normalize=True)
-        target_RGB_resized = F.interpolate(target_RGB, size=(64, 64), mode='bicubic')
+        fake_RGB_resized_normalized = img_loader.torch_lab2rgb(fake_LAB_resized, normalize=True)
 
         # target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
         # pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
 
         # G_losses=['softmax'] = None  #FIXME
-        G_losses['VGG'] = self.criterionVGG(fake_RGB_resized, target_RGB_resized)
-        G_losses['L1'] = self.criterionSubnet(fake_RGB_resized, target_RGB_resized)
+        G_losses['VGG'] = self.criterionVGG(fake_RGB_resized_normalized, warped_target_LAB_resized_normalized)
+        G_losses['L1'] = self.criterionSubnet(fake_RGB_resized_normalized, warped_target_LAB_resized_normalized)
         # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB  #FIXME
 
         return G_losses, fake_LAB_resized, attention
@@ -347,11 +356,11 @@ class Pix2PixModel(torch.nn.Module):
             attention = self.netG(target_L_gray_image, reference_RGB,
                                   subnet_only=True)
 
-        B, H_query, W_query, H_key, W_key = self.attention.size()
-        ref_AB = F.interpolate(reference_AB, size=(H_key, W_key))  # B x 2 x H_key x W_key
+        B, H_query, W_query, H_key, W_key = attention.size()
+        ref_AB = F.interpolate(reference_AB, size=(H_key, W_key), mode="bilinear")  # B x 2 x H_key x W_key
         ref_AB = ref_AB.view(B, 2, -1)  # 1 x 2 x N_key
 
-        attention = self.attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
+        attention = attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
         attention = attention.view(B, -1, H_key * W_key)  # N_query x N_key
         attention = attention.permute(0, 2, 1)  # N_key x N_query
 
