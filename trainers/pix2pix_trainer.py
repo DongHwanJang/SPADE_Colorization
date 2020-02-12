@@ -150,7 +150,7 @@ class Pix2PixTrainer():
         B, H_query, W_query, H_key, W_key = self.attention.size()
 
         ref_AB = F.interpolate(
-            ref_AB, size=(H_key, W_key)) # 1 x 3 x H_key x W_key
+            ref_AB, size=(H_key, W_key), mode="bilinear") # 1 x 3 x H_key x W_key
         ref_AB = ref_AB.squeeze(0) # 2xH_keyxW_key
         ref_AB = ref_AB.view(2, -1) # 2 x N_key
 
@@ -159,7 +159,7 @@ class Pix2PixTrainer():
         attention = attention.permute(1, 0) # N_key x N_query
 
         warped_AB = torch.mm(ref_AB, attention).view(2, H_query, W_query) # 2 x H_query x W_query
-        warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3]) # 1x2x256x256
+        warped_AB = F.interpolate(warped_AB.unsqueeze(0), size=ref_LAB.size()[1:3], mode="bilinear") # 1x2x256x256
 
         return torch.cat([target_L, warped_AB], dim=1)
 
@@ -252,7 +252,7 @@ class Pix2PixTrainer():
         pointwise_attention = pointwise_attention.unsqueeze(0).unsqueeze(0)
 
         pointwise_attention = F.interpolate(pointwise_attention,
-                                            size=self.data["reference_LAB"].size()[2:4]) # 1x1xH_refxW_ref
+                                            size=self.data["reference_LAB"].size()[2:4], mode="bilinear") # 1x1xH_refxW_ref
 
         reference_LAB = self.data["reference_LAB"].clone().detach()
 

@@ -95,7 +95,7 @@ class SPADEGenerator(BaseNetwork):
                 x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
             else:
                 # we downsample segmap and run convolution
-                x = F.interpolate(tgt_value, size=(self.sh, self.sw))
+                x = F.interpolate(tgt_value, size=(self.sh, self.sw), mode="bilinear")
                 x = self.fc(x)
 
             x = self.head_0(x, tgt_value, conf_map)
