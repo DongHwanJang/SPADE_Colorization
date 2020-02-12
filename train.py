@@ -76,21 +76,20 @@ for epoch in iter_counter.training_epochs():
         visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
+            visual_list = [('input_label', data_i['label'])]
             if opt.train_subnet_only or data_i["is_train_subnet"]:
-                visual_list = [('input_label', data_i['label']),
+                visual_list += [
                                ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
                                ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']
                                 .unsqueeze(1).repeat(1, 3, 1, 1)),
                                ('subnet_synthesized_image', trainer.get_subnet_latest_generated()),
                                ('subnet_synthesized_index', trainer.get_subnet_latest_index()),
-                               ('target_image', data_i['target_image']),
-                               ('reference_image', data_i['reference_image']),
                                ('subnet_target_L_gray_image', data_i['subnet_target_L_gray_image']),
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
                                ]
-            else:
-                visual_list = [('input_label', data_i['label']),
+            if not opt.train_subnet_onlytrain_subnet_only:
+                visual_list += [
                                ('conf_map', trainer.get_latest_conf_map()),
                                ('attention_map', trainer.get_latest_attention()),
                                ('warped_img_LAB', trainer.get_latest_warped_ref_img()),

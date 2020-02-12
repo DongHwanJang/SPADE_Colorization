@@ -28,17 +28,19 @@ def get_subnet_images(opt, image, subnet_image_size):
     ref = ref.resize((width, height), Image.BICUBIC)
 
     # create target from ref
-    center_width = ref.size[0] // 2
-    center_height = ref.size[1] // 2
-
     target_crop_width = target_crop_height = opt.crop_to_target_size
 
     target = ref
     if opt.crop_to_target:
-        target = target.crop((center_width - target_crop_width//2, center_height - target_crop_height//2,
-                center_width + target_crop_width//2, center_height + target_crop_height//2))
+        center_x, center_y = get_valid_center_coord(width, height, opt.crop_to_target_size, opt.crop_to_target_size)
+
+        target = target.crop((center_x - target_crop_width//2, center_y - target_crop_height//2,
+                center_x + target_crop_width//2, center_y + target_crop_height//2))
+
     if opt.flip_to_target:
-        target = target.transpose(Image.FLIP_LEFT_RIGHT)
+        is_flipping = np.random.choice([True, False])
+        if is_flipping:
+            target = target.transpose(Image.FLIP_LEFT_RIGHT)
     target = target.resize((width, height), Image.BILINEAR)
 
     # create index image
@@ -48,7 +50,7 @@ def get_subnet_images(opt, image, subnet_image_size):
     h = np.array(range(height)).reshape(-1, 1)
     h = np.tile(h, (1, width))
 
-    filler = np.zeros((256, 256))
+    filler = np.zeros((width, height))
 
     index_array = np.stack([w, h, filler], 2)
 
@@ -58,7 +60,8 @@ def get_subnet_images(opt, image, subnet_image_size):
     if opt.crop_to_target:
         index_image = index_image.crop((center_width - target_crop_width//2, center_height - target_crop_height//2,
                 center_width + target_crop_width//2, center_height + target_crop_height//2))
-    if opt.flip_to_target:
+
+    if opt.flip_to_target and is_flipping:
         index_image = index_image.transpose(Image.FLIP_LEFT_RIGHT)
     index_image = index_image.resize((width, height), Image.BILINEAR)
 
@@ -75,6 +78,13 @@ def get_subnet_images(opt, image, subnet_image_size):
     ref_warp = ref.resize((subnet_width, subnet_height), Image.BILINEAR)
 
     return (ref, ref_warp), (target,target_gt), (index_image, index_image_gt)
+
+def get_valid_center_coord(img_width, img_height, crop_width, crop_height):
+    width_room = (img_width - crop_width)
+    height_room = (img_height - crop_height)
+    center_x = np.randon.choice(range(width_room)) - crop_width // 2
+    center_y = np.randon.choice(range(height_room)) - crop_height // 2
+    return (center_x, center_y)
 
 def create_warpped_image(index_image, warp_image, target_gt):
     # PIL.Image[width][height] ==> np.array[height][width][channel]
