@@ -142,7 +142,6 @@ class Pix2PixTrainer():
         output[:, 0, :, :] = subnet_index % self.opt.subnet_crop_size
         output[:, 1, :, :] = subnet_index // self.opt.subnet_crop_size
 
-        output *= (self.opt.subnet_load_size / self.opt.subnet_crop_size)
         return output[0].type(torch.ByteTensor)
 
     def get_latest_discriminator_pred(self):
