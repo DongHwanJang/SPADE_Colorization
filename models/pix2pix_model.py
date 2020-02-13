@@ -123,12 +123,12 @@ class Pix2PixModel(torch.nn.Module):
             subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
             subnet_index_gt_resized = data["subnet_index_gt_resized"]
             if mode == 'subnet_generator':
-                g_loss, generated, attention, generated_index = \
+                g_loss, generated, attention, generated_index, fid = \
                     self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
                                                        subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
-                                                       subnet_index_gt_resized)
+                                                       subnet_index_gt_resized, get_fid=data["get_fid"])
 
-                return g_loss, generated, attention, generated_index
+                return g_loss, generated, attention, generated_index, fid
 
             if mode == 'subnet_discriminator':
                 subnet_pred_fake, subnet_pred_real =\
@@ -224,6 +224,7 @@ class Pix2PixModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
+
             G_losses['GAN_Feat'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
@@ -248,7 +249,7 @@ class Pix2PixModel(torch.nn.Module):
 
     def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
-                                      subnet_index_gt_resized):
+                                      subnet_index_gt_resized, get_fid=False):
 
         G_losses = {}
 
@@ -270,7 +271,7 @@ class Pix2PixModel(torch.nn.Module):
         pred_fake, pred_real = self.discriminate(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
-                                            for_discriminator=False)
+                                            for_discriminator=False)[0]
 
         # calculate feature matching loss with L1 distance
         if not self.opt.no_ganFeat_loss:
@@ -284,10 +285,13 @@ class Pix2PixModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
-            G_losses['GAN_Feat'] = GAN_Feat_loss
+            G_losses['GAN_Feat'] = GAN_Feat_loss[0]
 
+        fid = None
+        if get_fid:
+            fid = self.fid(subnet_warped_LAB_gt_resized, subnet_fake_LAB_resized.clone())
 
-        return G_losses, subnet_fake_LAB_resized, attention, torch.max(corr_map, dim=1)[1].unsqueeze(1)
+        return G_losses, subnet_fake_LAB_resized, attention, torch.max(corr_map, dim=1)[1].unsqueeze(1), fid
 
     def run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB):
         with torch.no_grad():

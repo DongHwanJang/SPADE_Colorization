@@ -75,7 +75,7 @@ class Pix2PixTrainer():
     def run_subnet_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
 
-        g_losses, generated, attention, generated_index = self.pix2pix_model(data, mode='subnet_generator')
+        g_losses, generated, attention, generated_index, fid = self.pix2pix_model(data, mode='subnet_generator')
 
         g_losses_lambda = {
                          "softmax": self.opt.lambda_subnet_softmax,
@@ -91,7 +91,7 @@ class Pix2PixTrainer():
             g_losses_with_lambda[key + "_weighted"] = g_losses[key] * g_losses_lambda[key]
 
         g_loss = 0
-        print(g_losses_with_lambda)
+
         for key in g_losses_with_lambda:
             g_loss += g_losses_with_lambda[key]
         g_loss = g_loss.mean()
@@ -104,6 +104,7 @@ class Pix2PixTrainer():
         self.subnet_index = generated_index.detach().cpu()
         self.attention = attention.detach().cpu()
         self.data = data
+        self.subnet_fid = fid
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
@@ -174,6 +175,9 @@ class Pix2PixTrainer():
 
     def get_latest_fid(self):
         return self.fid
+
+    def get_subnet_latest_fid(self):
+        return self.subnet_fid
 
     def get_latest_attention(self):
         """

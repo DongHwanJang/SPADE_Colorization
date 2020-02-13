@@ -90,12 +90,12 @@ for epoch in iter_counter.training_epochs():
         subnet_losses = {}
         if opt.train_subnet_only or data_i["is_training_subnet"]:
             subnet_losses = trainer.get_subnet_latest_losses()
-            subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
+
         else:
             losses = trainer.get_latest_losses()
-            losses = {**losses, **trainer.get_latest_discriminator_pred()}
 
         total_losses = {**losses, **subnet_losses}
+
         visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
                                         total_losses, iter_counter.time_per_iter)
         visualizer.plot_current_errors(total_losses, iter_counter.total_steps_so_far)
@@ -132,7 +132,11 @@ for epoch in iter_counter.training_epochs():
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
         if data_i["get_fid"]:
-            visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
+            if opt.train_subnet_only or data_i["is_training_subnet"]:
+                visualizer.display_value("subnet_fid", trainer.get_subnet_latest_fid(), iter_counter.total_steps_so_far)
+
+            else:
+                visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():
             print('saving the latest model (epoch %d, total_steps %d)' %

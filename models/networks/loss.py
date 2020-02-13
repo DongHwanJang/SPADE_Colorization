@@ -90,6 +90,7 @@ class GANLoss(nn.Module):
         # computing loss is a bit complicated because |input| may not be
         # a tensor, but list of tensors in case of multiscale discriminator
         if isinstance(input, list):
+
             loss = 0
             # iterate through each discriminator's output
             for pred_i in input:
@@ -100,7 +101,9 @@ class GANLoss(nn.Module):
                 loss_tensor = self.loss(pred_i, target_is_real, for_discriminator)
                 bs = 1 if len(loss_tensor.size()) == 0 else loss_tensor.size(0)
                 new_loss = torch.mean(loss_tensor.view(bs, -1), dim=1)
+
                 loss += new_loss
+
             return loss / len(input)
         else:
             return self.loss(input, target_is_real, for_discriminator)
