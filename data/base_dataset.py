@@ -70,8 +70,8 @@ def get_transform(opt, params, method=Image.BICUBIC, normalize=True, toTensor=Tr
         transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
     if isRef:
-        transform_list.append(transforms.RandomHorizontalFlip(p=0.7))
-        transform_list.append(transforms.RandomResizedCrop(opt.load_size, scale=(0.6, 1.0)))
+        transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
+        transform_list.append(transforms.RandomResizedCrop(opt.load_size, scale=(0.1, 1.0)))
 
     if toTensor:
         transform_list += [transforms.ToTensor()]
