@@ -137,12 +137,13 @@ class Pix2PixTrainer():
         output[:, 0, :, :] = subnet_index % self.opt.subnet_crop_size
         output[:, 1, :, :] = subnet_index // self.opt.subnet_crop_size
 
-        print(output)
         output /= float(self.opt.subnet_crop_size)
         output = output.float()
+        print(output[0])
         output[:, 0, :, :] = (output[:, 0, :, :] - 0.485) / 0.229
         output[:, 1, :, :] = (output[:, 1, :, :] - 0.456) / 0.224
         output[:, 2, :, :] = (output[:, 2, :, :] - 0.406) / 0.225
+        print(output[0])
         return output[0]
 
     def get_latest_discriminator_pred(self):

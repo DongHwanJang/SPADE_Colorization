@@ -70,11 +70,11 @@ for epoch in iter_counter.training_epochs():
                 trainer.run_generator_one_step(data_i)
 
 
-        # # train discriminator
-        # if opt.train_subnet_only or data_i["is_training_subnet"]:
-        #     trainer.run_subnet_discriminator_one_step(data_i)
-        # else:
-        #     trainer.run_discriminator_one_step(data_i)
+        # train discriminator
+        if opt.train_subnet_only or data_i["is_training_subnet"]:
+            trainer.run_subnet_discriminator_one_step(data_i)
+        else:
+            trainer.run_discriminator_one_step(data_i)
 
 
         # Visualizations
@@ -90,7 +90,7 @@ for epoch in iter_counter.training_epochs():
                                ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
                                ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']),
                                ('subnet_synthesized_image', trainer.get_subnet_latest_generated()),
-                               ('subnet_new_index', trainer.get_subnet_latest_index()),
+                               ('subnet_synthesized_index', trainer.get_subnet_latest_index()),
                                ('subnet_target_L_gray_image', data_i['subnet_target_L_gray_image']),
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
