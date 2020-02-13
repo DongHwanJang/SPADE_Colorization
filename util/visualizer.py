@@ -183,6 +183,8 @@ class Visualizer():
                         t = util.tensor2im(t, tile=tile, normalize=norm)
 
                 new_visuals[key] = t
+                if 'subnet_new_index' in key:
+                    print(new_visuals[key])
         return new_visuals
 
     # save image to the disk
