@@ -384,19 +384,18 @@ class NonLocalBlock(nn.Module):
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check | B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
-
+        print("corr map: " + str(corr_map.shape))
         conf_argmax = torch.max(corr_map, dim=2)[1]  # B x N_query (argmax)  # TODO: Not used now
         attention = self.softmax(corr_map / self.tau)  # B x (N_query) x (N_key)
-        attention = attention.view(B, H_query, W_query, H_key, W_key)
 
         if subnet_only:
             # attention: B x H_query x W_query x H_key x W_key
             # corr_map: B x N_query x N_key
+            attention = attention.view(B, H_query, W_query, H_key, W_key)
             corr_map = corr_map.view(B, H_query * W_query, H_key, W_key)  # B x N_query x H_key x W_key
             return attention, corr_map
 
         else:
-
             _, C_value, _, _ = value.shape
 
             proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
@@ -406,6 +405,8 @@ class NonLocalBlock(nn.Module):
 
             if self.use_gamma:
                 out = self.gamma * out + value
+
+            attention = attention.view(B, H_query, W_query, H_key, W_key)
 
             return attention, conf_map, out
 

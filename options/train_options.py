@@ -40,6 +40,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--use_reconstruction_loss', action='store_true', help='Use reconstruction loss')
         parser.add_argument('--use_contextual_loss', action='store_true', help='Use contextual loss')
         parser.add_argument('--use_wandb', action='store_true', help='Use Weights and Biases')
+        parser.add_argument('--wandb_user_name', default="isaac", help='key used to find pai key in ".wandb_api_keys.json"')
         parser.add_argument('--train_subnet_only', action='store_true',
                             help='whether to train only with correspondence subnet')
         parser.add_argument('--train_subnet', action='store_true',
@@ -61,6 +62,13 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lambda_smooth', type=float, default=1.0, help='weight for smoothness loss')
         parser.add_argument('--lambda_recon', type=float, default=1.0, help='weight for reconstruction loss')
         parser.add_argument('--lambda_context', type=float, default=1.0, help='weight for contextual loss')
+
+        parser.add_argument('--lambda_subnet_feat', type=float, default=1.0, help='weight for feature matching loss')
+        parser.add_argument('--lambda_subnet_vgg', type=float, default=1.0, help='weight for feature loss')
+        parser.add_argument('--lambda_subnet_smooth', type=float, default=1.0, help='weight for smoothness loss')
+        parser.add_argument('--lambda_subnet_softmax', type=float, default=1.0, help='weight for cross entropy loss')
+        parser.add_argument('--lambda_subnet_l1', type=float, default=1.0, help='weight for l1 loss')
+
         parser.add_argument('--no_ganFeat_loss', action='store_true', help='if specified, do *not* use discriminator feature matching loss')
         parser.add_argument('--no_vgg_loss', action='store_true', help='if specified, do *not* use VGG feature matching loss')
         parser.add_argument('--gan_mode', type=str, default='hinge', help='(ls|original|hinge)')

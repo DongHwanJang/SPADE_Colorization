@@ -12,10 +12,16 @@ from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer
 import os
 import wandb
+import json
 
 # parse options
 opt = TrainOptions().parse()
 if opt.use_wandb:
+    json_path = "/home/minds/.wandb_api_keys.json"
+    if os.path.exists(json_path):
+        with open(json_path, 'r') as j:
+            json_file = json.loads(j.read())
+            os.environ["WANDB_API_KEY"] = json_file[opt.wandb_user_name]
     wandb.init(entity="eccv2020_best_paper", project="SPADE Colorization", name=opt.name,
                resume=opt.continue_train, magic=True)
     wandb.config.update(opt)
@@ -78,10 +84,19 @@ for epoch in iter_counter.training_epochs():
 
 
         # Visualizations
-        losses = trainer.get_latest_losses()
+        losses = {}
+        subnet_losses = {}
+        if opt.train_subnet_only or data_i["is_training_subnet"]:
+            subnet_losses = trainer.get_subnet_latest_losses()
+            subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
+        else:
+            losses = trainer.get_latest_losses()
+            losses = {**losses, **trainer.get_latest_discriminator_pred()}
+
+        total_losses = {**losses, **subnet_losses}
         visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
-                                        losses, iter_counter.time_per_iter)
-        visualizer.plot_current_errors(losses, iter_counter.total_steps_so_far)
+                                        total_losses, iter_counter.time_per_iter)
+        visualizer.plot_current_errors(total_losses, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
             visual_list = [('input_label', data_i['label'])]
@@ -96,6 +111,7 @@ for epoch in iter_counter.training_epochs():
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
                                ]
+
             else:
                 visual_list += [
                                ('conf_map', trainer.get_latest_conf_map()),
@@ -110,7 +126,6 @@ for epoch in iter_counter.training_epochs():
                                ]
 
             visuals = OrderedDict(visual_list)
-            visuals = {**visuals, **trainer.get_latest_discriminator_pred()}
 
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
