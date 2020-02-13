@@ -55,6 +55,7 @@ class Pix2PixModel(torch.nn.Module):
                 self.contextualLoss = networks.ContextualLoss()
             self.criterionSubnet = torch.nn.L1Loss()
             self.criterionSoftmax = networks.IndexLoss()
+            self.criterionSmoothL1 = torch.nn.SmoothL1Loss()
 
     # parses LAB into L and AB.
     # This shouldn't make new copies. It should also handle batch cases
@@ -198,20 +199,6 @@ class Pix2PixModel(torch.nn.Module):
             data['instance'] = data['instance'].cuda()
             data['image'] = data['image'].cuda()
 
-        # create one-hot label map
-        # label_map = data['label']
-        # bs, _, h, w = label_map.size()
-        # nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
-        #     else self.opt.label_nc
-        # input_label = self.FloatTensor(bs, nc, h, w).zero_()
-        # input_semantics = input_label.scatter_(1, label_map, 1.0)
-
-        # concatenate instance map if it exists
-        # if not self.opt.no_instance:
-        #     inst_map = data['instance']
-        #     instance_edge_map = self.get_edges(inst_map)
-        #     input_semantics = torch.cat((input_semantics, instance_edge_map), dim=1)
-
         return data['label'], data['image']
 
     def compute_generator_loss(self, target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
@@ -224,8 +211,6 @@ class Pix2PixModel(torch.nn.Module):
         fake_LAB = torch.cat([target_L, fake_AB], dim=1)
         fake_RGB = img_loader.torch_lab2rgb(fake_LAB)
 
-        # if self.opt.use_vae:
-        #     G_losses['KLD'] = KLD_loss
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
 
@@ -248,7 +233,8 @@ class Pix2PixModel(torch.nn.Module):
             # pass
         fid = None
         if get_fid:
-            fid = self.fid(target_RGB, util.normalize(fake_RGB))
+            fid = self.fid(target_RGB.clone(), util.denormalize(fake_RGB.clone()))
+
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
@@ -274,14 +260,33 @@ class Pix2PixModel(torch.nn.Module):
         subnet_fake_LAB_resized = torch.cat([target_L_resized, subnet_fake_AB_resized], dim=1)
         subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
 
-        # target_LAB_resized = F.interpolate(target_LAB, size=(64, 64), mode='bicubic')
-        # pred_fake, pred_real = self.discriminate(fake_LAB_resized, target_LAB_resized)
-
         # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
         G_losses['softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
         G_losses['VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
-        G_losses['L1'] = self.criterionSubnet(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
-        # G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])  # put fake_AB  #TODO
+
+        G_losses['L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses["smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
+
+        # We let discriminator compare fake_LAB and target_LAB.
+        pred_fake, pred_real = self.discriminate(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+
+        G_losses['GAN'] = self.criterionGAN(pred_fake, True,
+                                            for_discriminator=False)
+
+        # calculate feature matching loss with L1 distance
+        if not self.opt.no_ganFeat_loss:
+            num_D = len(pred_fake)
+            GAN_Feat_loss = self.FloatTensor(1).fill_(0)
+
+            for i in range(num_D):  # for each discriminator
+                # last output is the final prediction, so we exclude it
+                num_intermediate_outputs = len(pred_fake[i]) - 1
+                for j in range(num_intermediate_outputs):  # for each layer output
+                    unweighted_loss = self.criterionFeat(
+                        pred_fake[i][j], pred_real[i][j].detach())
+                    GAN_Feat_loss += unweighted_loss / num_D
+            G_losses['GAN_Feat'] = GAN_Feat_loss
+
 
         return G_losses, subnet_fake_LAB_resized, attention, torch.max(corr_map, dim=1)[1].unsqueeze(1)
 
@@ -381,7 +386,6 @@ class Pix2PixModel(torch.nn.Module):
         discriminator_out = self.netD(fake_and_real)
 
         pred_fake, pred_real = self.divide_pred(discriminator_out)
-
         return pred_fake, pred_real
 
     # Take the prediction of fake and real images from the combined batch
