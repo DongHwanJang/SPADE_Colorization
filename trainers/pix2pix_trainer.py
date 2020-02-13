@@ -7,7 +7,6 @@ from models.networks.sync_batchnorm import DataParallelWithCallback
 from models.pix2pix_model import Pix2PixModel
 import numpy as np
 import torch.nn.functional as F
-from torchvision.transforms import functional as F_vision
 import torch
 import cv2
 from util import util
@@ -79,11 +78,13 @@ class Pix2PixTrainer():
         g_losses, generated, attention, generated_index = self.pix2pix_model(data, mode='subnet_generator')
 
         g_losses_lambda = {
-                         "softmax": 1/10,
-                         "VGG": 20,
-                         "L1": 1,
-                         "smoothness": 1,
-                         }  # TODO
+                         "softmax": self.opt.lambda_subnet_softmax,
+                         "VGG": self.opt.lambda_subnet_vgg,
+                         "L1": self.opt.lambda_subnet_l1,
+                         "smoothness": self.opt.lambda_subnet_smooth,
+                         "GAN_Feat": self.opt.lambda_subnet_feat,
+                         "GAN":1
+                         }
 
         g_losses_with_lambda = {}
         for key in g_losses:
@@ -96,8 +97,8 @@ class Pix2PixTrainer():
 
         g_loss.backward()
         self.optimizer_G.step()
-        self.g_losses = g_losses
-        self.g_losses_with_lambda = g_losses_with_lambda
+        self.subnet_g_losses = g_losses
+        self.subnet_g_losses_with_lambda = g_losses_with_lambda
         self.subnet_generated = generated.detach().cpu()
         self.subnet_index = generated_index.detach().cpu()
         self.attention = attention.detach().cpu()
@@ -118,17 +119,14 @@ class Pix2PixTrainer():
         d_loss = sum(d_losses.values()).mean()
         d_loss.backward()
         self.optimizer_D_subnet.step()
-        self.d_subnet_losses = d_losses
-        self.d_subnet_pred = d_pred_dict
+        self.subnet_d_losses = d_losses
+        self.subnet_d_pred = d_pred_dict
 
     def get_latest_losses(self):
-        if self.opt.train_subnet_only:
-            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_subnet_losses}
-        elif self.opt.train_subnet:
-            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses, **self.d_subnet_losses}
-        else:
-            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
+        return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
 
+    def get_subnet_latest_losses(self):
+        return {**self.subnet_g_losses, **self.subnet_g_losses_with_lambda, **self.subnet_d_losses}
 
     def get_latest_generated(self):
         return self.generated
@@ -147,8 +145,8 @@ class Pix2PixTrainer():
     def get_latest_discriminator_pred(self):
         return self.d_pred
 
-    def get_latest_subnet_discriminator_pred(self):
-        return self.d_subnet_pred
+    def get_subnet_latest_discriminator_pred(self):
+        return self.subnet_d_pred
 
     def get_latest_conf_map(self):
         return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
