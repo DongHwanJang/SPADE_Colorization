@@ -7,7 +7,7 @@ import torch
 import models.networks as networks
 import util.util as util
 from util.img_loader import lab_deloader
-from torchvision.transforms import functional as F
+import torch.nn.functional as F
 from util import img_loader
 from util.fid import FID
 
@@ -47,7 +47,7 @@ class Pix2PixModel(torch.nn.Module):
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
-                self.smoothnessLoss = networks.SmoothnessLoss()
+                self.smoothnessLoss = networks.TotalVariationLoss()
             if opt.use_reconstruction_loss:
                 self.reconstructionLoss = networks.ReconstructionLoss()
             if opt.use_contextual_loss:
