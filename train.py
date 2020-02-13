@@ -105,10 +105,9 @@ for epoch in iter_counter.training_epochs():
             if opt.train_subnet_only or data_i["is_training_subnet"]:
                 visual_list += [
                                ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
-                               ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']
-                                .unsqueeze(1).repeat(1, 3, 1, 1)),
+                               ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']),
                                ('subnet_synthesized_image', trainer.get_subnet_latest_generated()),
-                               ('subnet_synthesized_index', trainer.get_subnet_latest_index()),
+                               ('subnet_generated_index', trainer.get_subnet_latest_index()),
                                ('subnet_target_L_gray_image', data_i['subnet_target_L_gray_image']),
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),

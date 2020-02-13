@@ -96,15 +96,19 @@ class Pix2pixDataset(BaseDataset):
             subnet_ref_L_gray_image = rgb_pil2l_as_rgb(subnet_ref, need_Tensor=True)
 
             index_gt_tensor = torch.from_numpy(np.array(index_image_gt).astype(np.int64))  # H x W x C
-            subnet_index_gt_resized = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
-                                      index_gt_tensor[:, :, 0]  # H x W
+            subnet_index_gt_for_loss = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
+                                       index_gt_tensor[:, :, 0]  # H x W
+
+            index_image = F.normalize(F.to_tensor(index_image_gt), mean=[0.485, 0.456, 0.406],
+                                      std=[0.229, 0.224, 0.225])
 
             subnet_args["subnet_target_LAB"] = subnet_target_lab
             subnet_args["subnet_ref_LAB"] = subnet_ref_lab
             subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
             subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
             subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
-            subnet_args["subnet_index_gt_resized"] = subnet_index_gt_resized
+            subnet_args["subnet_index_gt_resized"] = index_image
+            subnet_args["subnet_index_gt_for_loss"] = subnet_index_gt_for_loss
 
         input_dict = {'label': target_path,
                       'target_image': target_rgb,

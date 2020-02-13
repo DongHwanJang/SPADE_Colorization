@@ -15,4 +15,3 @@ venv/
 *.log
 
 train.sh
-venv/

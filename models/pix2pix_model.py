@@ -25,11 +25,12 @@ class Pix2PixModel(torch.nn.Module):
         self.ByteTensor = torch.cuda.ByteTensor if self.use_gpu() \
             else torch.ByteTensor
 
-        self.netG, self.netD, self.netE = self.initialize_networks(opt)
+        self.netG, self.netD, self.netD_subnet, self.netE = self.initialize_networks(opt)
 
         if opt.use_wandb:
             opt.wandb.watch(self.netG, log="all")
             opt.wandb.watch(self.netD, log="all")
+            opt.wandb.watch(self.netD_subnet, log="all")
 
         if not opt.no_fid:
             self.fid = FID()
@@ -121,12 +122,12 @@ class Pix2PixModel(torch.nn.Module):
             _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
 
             subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
-            subnet_index_gt_resized = data["subnet_index_gt_resized"]
+            subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
             if mode == 'subnet_generator':
                 g_loss, generated, attention, generated_index, fid = \
                     self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
                                                        subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
-                                                       subnet_index_gt_resized, get_fid=data["get_fid"])
+                                                       subnet_index_gt_for_loss, get_fid=data["get_fid"])
 
                 return g_loss, generated, attention, generated_index, fid
 
@@ -146,6 +147,7 @@ class Pix2PixModel(torch.nn.Module):
             G_params += list(self.netE.parameters())
         if opt.isTrain:
             D_params = list(self.netD.parameters())
+            D_subnet_params = list(self.netD_subnet.parameters())
 
         beta1, beta2 = opt.beta1, opt.beta2
         if opt.no_TTUR:
@@ -155,8 +157,9 @@ class Pix2PixModel(torch.nn.Module):
 
         optimizer_G = torch.optim.Adam(G_params, lr=G_lr, betas=(beta1, beta2))
         optimizer_D = torch.optim.Adam(D_params, lr=D_lr, betas=(beta1, beta2))
+        optimizer_D_subnet = torch.optim.Adam(D_subnet_params, lr=D_lr, betas=(beta1, beta2))
 
-        return optimizer_G, optimizer_D
+        return optimizer_G, optimizer_D, optimizer_D_subnet
 
     def save(self, epoch):
         util.save_network(self.netG, 'G', epoch, self.opt)
@@ -171,16 +174,18 @@ class Pix2PixModel(torch.nn.Module):
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
         netD = networks.define_D(opt) if opt.isTrain else None
+        netD_subnet = networks.define_D(opt) if opt.isTrain else None
         netE = networks.define_E(opt) if opt.use_vae else None
 
         if not opt.isTrain or opt.continue_train:
             netG = util.load_network(netG, 'G', opt.which_epoch, opt)
             if opt.isTrain:
                 netD = util.load_network(netD, 'D', opt.which_epoch, opt)
+                netD_subnet = util.load_network(netD_subnet, 'D_subnet', opt.which_epoch, opt)
             if opt.use_vae:
                 netE = util.load_network(netE, 'E', opt.which_epoch, opt)
 
-        return netG, netD, netE
+        return netG, netD, netD_subnet, netE
 
     # preprocess the input, such as moving the tensors to GPUs and
     # transforming the label map to one-hot encoding
@@ -249,7 +254,7 @@ class Pix2PixModel(torch.nn.Module):
 
     def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
-                                      subnet_index_gt_resized, get_fid=False):
+                                      subnet_index_gt_for_loss, get_fid=False):
 
         G_losses = {}
 
@@ -261,7 +266,7 @@ class Pix2PixModel(torch.nn.Module):
         subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
 
         # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
-        G_losses['softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_resized)
+        G_losses['softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
         G_losses['VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
 
         G_losses['L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
