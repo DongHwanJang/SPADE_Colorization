@@ -81,34 +81,34 @@ class Pix2pixDataset(BaseDataset):
 
         ####### subnet reconstruction loss
         subnet_args = {}
-        if self.train_subnet_only or (self.train_subnet and index % self.train_subnet_period == 0):
+        # if self.train_subnet_only or (self.train_subnet and index % self.train_subnet_period == 0):
 
-            (subnet_ref, ref_warp), (subnet_target, target_gt), (index_image, index_image_gt) =\
-                get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size)
+        (subnet_ref, ref_warp), (subnet_target, target_gt), (index_image, index_image_gt) =\
+            get_subnet_images(self.opt, target_rgb_pil, self.opt.subnet_crop_size)
 
-            subnet_warped_RGB_gt_resized = create_warpped_image(index_image_gt, ref_warp, target_gt)
-            subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_RGB_gt_resized)
+        subnet_warped_RGB_gt_resized = create_warpped_image(index_image_gt, ref_warp, target_gt)
+        subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_RGB_gt_resized)
 
-            subnet_target_lab = rgb_pil2lab_tensor(subnet_target)
-            subnet_ref_lab = rgb_pil2lab_tensor(subnet_ref)
+        subnet_target_lab = rgb_pil2lab_tensor(subnet_target)
+        subnet_ref_lab = rgb_pil2lab_tensor(subnet_ref)
 
-            subnet_target_L_gray_image = rgb_pil2l_as_rgb(subnet_target, need_Tensor=True)
-            subnet_ref_L_gray_image = rgb_pil2l_as_rgb(subnet_ref, need_Tensor=True)
+        subnet_target_L_gray_image = rgb_pil2l_as_rgb(subnet_target, need_Tensor=True)
+        subnet_ref_L_gray_image = rgb_pil2l_as_rgb(subnet_ref, need_Tensor=True)
 
-            index_gt_tensor = torch.from_numpy(np.array(index_image_gt).astype(np.int64))  # H x W x C
-            subnet_index_gt_for_loss = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
-                                       index_gt_tensor[:, :, 0]  # H x W
+        index_gt_tensor = torch.from_numpy(np.array(index_image_gt).astype(np.int64))  # H x W x C
+        subnet_index_gt_for_loss = index_gt_tensor[:, :, 1] * self.opt.subnet_crop_size +\
+                                   index_gt_tensor[:, :, 0]  # H x W
 
-            index_image = F.normalize(F.to_tensor(index_image_gt), mean=[0.485, 0.456, 0.406],
-                                      std=[0.229, 0.224, 0.225])
+        index_image = F.normalize(F.to_tensor(index_image_gt), mean=[0.485, 0.456, 0.406],
+                                  std=[0.229, 0.224, 0.225])
 
-            subnet_args["subnet_target_LAB"] = subnet_target_lab
-            subnet_args["subnet_ref_LAB"] = subnet_ref_lab
-            subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
-            subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
-            subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
-            subnet_args["subnet_index_gt_resized"] = index_image
-            subnet_args["subnet_index_gt_for_loss"] = subnet_index_gt_for_loss
+        subnet_args["subnet_target_LAB"] = subnet_target_lab
+        subnet_args["subnet_ref_LAB"] = subnet_ref_lab
+        subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
+        subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
+        subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
+        subnet_args["subnet_index_gt_resized"] = index_image
+        subnet_args["subnet_index_gt_for_loss"] = subnet_index_gt_for_loss
 
         input_dict = {'label': target_path,
                       'target_image': target_rgb,

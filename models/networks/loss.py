@@ -262,5 +262,7 @@ class IndexLoss(nn.Module):
 
     def forward(self, corr_map, index_map):
         # index_map: B x H_key x W_key, corr_map: B x C(=N_query) x H_key x W_key
+        print("corr_map type:" + str(type(corr_map)))
+        print("index_map type:" + str(type(index_map)))
         index_loss = self.loss(corr_map, index_map)
         return index_loss

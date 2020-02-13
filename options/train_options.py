@@ -57,16 +57,16 @@ class TrainOptions(BaseOptions):
 
         # for discriminators
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in first conv layer')
-        parser.add_argument('--lambda_feat', type=float, default=10, help='weight for feature matching loss')
-        parser.add_argument('--lambda_vgg', type=float, default=0.1, help='weight for feature loss')
+        parser.add_argument('--lambda_feat', type=float, default=1, help='weight for feature matching loss')
+        parser.add_argument('--lambda_vgg', type=float, default=1, help='weight for feature loss')
         parser.add_argument('--lambda_smooth', type=float, default=0.00001, help='weight for smoothness loss')
         parser.add_argument('--lambda_recon', type=float, default=0.1, help='weight for reconstruction loss')
         parser.add_argument('--lambda_context', type=float, default=0.25, help='weight for contextual loss')
 
-        parser.add_argument('--lambda_subnet_feat', type=float, default=10, help='weight for feature matching loss')
-        parser.add_argument('--lambda_subnet_vgg', type=float, default=0.1, help='weight for feature loss')
+        parser.add_argument('--lambda_subnet_feat', type=float, default=1, help='weight for feature matching loss')
+        parser.add_argument('--lambda_subnet_vgg', type=float, default=1, help='weight for feature loss')
         parser.add_argument('--lambda_subnet_smooth', type=float, default=0.00001, help='weight for smoothness loss')
-        parser.add_argument('--lambda_subnet_softmax', type=float, default=0.2, help='weight for cross entropy loss')
+        parser.add_argument('--lambda_subnet_softmax', type=float, default=0.1, help='weight for cross entropy loss')
         parser.add_argument('--lambda_subnet_l1', type=float, default=0.01, help='weight for l1 loss')
 
         parser.add_argument('--no_ganFeat_loss', action='store_true', help='if specified, do *not* use discriminator feature matching loss')
