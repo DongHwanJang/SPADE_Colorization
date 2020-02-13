@@ -229,9 +229,11 @@ class Pix2PixModel(torch.nn.Module):
         if not self.opt.no_vgg_loss:
             G_losses['VGG'] = self.criterionVGG(fake_RGB, target_RGB)
             # pass
+
         fid = None
         if get_fid:
-            fid = self.fid(target_RGB, util.normalize(fake_RGB))
+            fid = self.fid(target_RGB.clone(), util.denormalize(fake_RGB.clone()))
+
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
@@ -269,13 +271,11 @@ class Pix2PixModel(torch.nn.Module):
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
                                             for_discriminator=False)
-        print("gan loss:" + str(G_losses['GAN']))
 
         # calculate feature matching loss with L1 distance
         if not self.opt.no_ganFeat_loss:
             num_D = len(pred_fake)
             GAN_Feat_loss = self.FloatTensor(1).fill_(0)
-            print("feat loss:" + str(GAN_Feat_loss))
 
             for i in range(num_D):  # for each discriminator
                 # last output is the final prediction, so we exclude it
@@ -284,7 +284,6 @@ class Pix2PixModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
-            print("feat loss:" + str(GAN_Feat_loss))
             G_losses['GAN_Feat'] = GAN_Feat_loss
 
 
@@ -386,7 +385,6 @@ class Pix2PixModel(torch.nn.Module):
         discriminator_out = self.netD(fake_and_real)
 
         pred_fake, pred_real = self.divide_pred(discriminator_out)
-        #print(pred_fake)
         return pred_fake, pred_real
 
     # Take the prediction of fake and real images from the combined batch

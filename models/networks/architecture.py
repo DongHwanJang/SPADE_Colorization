@@ -384,7 +384,6 @@ class NonLocalBlock(nn.Module):
         corr_map = torch.bmm(proj_query, proj_key)  # transpose check | B x N_query x N_key
         conf_map = torch.max(corr_map, dim=2)[0]  # B x N_query
         conf_map = conf_map.view(-1, H_query, W_query).unsqueeze(1)
-        print("corr map: " + str(corr_map.shape))
         conf_argmax = torch.max(corr_map, dim=2)[1]  # B x N_query (argmax)  # TODO: Not used now
         attention = self.softmax(corr_map / self.tau)  # B x (N_query) x (N_key)
 

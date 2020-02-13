@@ -13,6 +13,7 @@ from trainers.pix2pix_trainer import Pix2PixTrainer
 import os
 import wandb
 import json
+import torch
 
 # parse options
 opt = TrainOptions().parse()
@@ -71,7 +72,8 @@ for epoch in iter_counter.training_epochs():
         # train generator
         if i % opt.D_steps_per_G == 0:
             if opt.train_subnet_only or data_i["is_training_subnet"]:
-                trainer.run_subnet_generator_one_step(data_i)
+                with torch.autograd.set_detect_anomaly(True):
+                    trainer.run_subnet_generator_one_step(data_i)
             else:
                 trainer.run_generator_one_step(data_i)
 

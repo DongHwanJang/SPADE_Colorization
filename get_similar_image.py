@@ -114,11 +114,9 @@ if __name__ == '__main__':
             for idx, (target_key, feature) in enumerate(feature_dict.items()):
                 start_time = time.time()
 
-                # print(target_key)
                 ref_keys = find_similar_image(feature_dict, target_key, k=k, mode='fast', stop_at=stop_at)
 
                 end_time = time.time()
-                # print(end_time - start_time)
 
                 text_file.write("{:s} ".format(target_key))
                 text_file.write(" ".join(["{:s} {:f}".format(ref_key[1], ref_key[0]) for ref_key in ref_keys]))
