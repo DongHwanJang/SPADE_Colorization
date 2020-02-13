@@ -36,7 +36,7 @@ class Pix2PixTrainer():
         self.data = None
 
         if opt.isTrain:
-            self.optimizer_G, self.optimizer_D = \
+            self.optimizer_G, self.optimizer_D, self.optimizer_D_subnet = \
                 self.pix2pix_model_on_one_gpu.create_optimizers(opt)
             self.old_lr = opt.lr
 
@@ -113,17 +113,22 @@ class Pix2PixTrainer():
         self.d_pred = d_pred_dict
 
     def run_subnet_discriminator_one_step(self, data):
-        self.optimizer_D.zero_grad()
+        self.optimizer_D_subnet.zero_grad()
         d_pred_dict, d_losses = self.pix2pix_model(data, mode='subnet_discriminator')
         d_loss = sum(d_losses.values()).mean()
         d_loss.backward()
-        self.optimizer_D.step()
-        self.d_losses = d_losses
-        self.d_pred = d_pred_dict
+        self.optimizer_D_subnet.step()
+        self.d_subnet_losses = d_losses
+        self.d_subnet_pred = d_pred_dict
 
     def get_latest_losses(self):
-        # return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
-        return {**self.g_losses, **self.g_losses_with_lambda}
+        if self.opt.train_subnet_only:
+            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_subnet_losses}
+        elif self.opt.train_subnet:
+            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses, **self.d_subnet_losses}
+        else:
+            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
+
 
     def get_latest_generated(self):
         return self.generated
@@ -137,17 +142,14 @@ class Pix2PixTrainer():
         output[:, 0, :, :] = subnet_index % self.opt.subnet_crop_size
         output[:, 1, :, :] = subnet_index // self.opt.subnet_crop_size
 
-        output /= float(self.opt.subnet_crop_size)
-        output = output.float()
-        print(output[0])
-        output[:, 0, :, :] = (output[:, 0, :, :] - 0.485) / 0.229
-        output[:, 1, :, :] = (output[:, 1, :, :] - 0.456) / 0.224
-        output[:, 2, :, :] = (output[:, 2, :, :] - 0.406) / 0.225
-        print(output[0])
-        return output[0]
+        output *= (self.opt.subnet_load_size / self.opt.subnet_crop_size)
+        return output[0].type(torch.ByteTensor)
 
     def get_latest_discriminator_pred(self):
         return self.d_pred
+
+    def get_latest_subnet_discriminator_pred(self):
+        return self.d_subnet_pred
 
     def get_latest_conf_map(self):
         return self.conf_map.clone().detach().repeat(1, 3, 1, 1)
@@ -322,12 +324,16 @@ class Pix2PixTrainer():
             if self.opt.no_TTUR:
                 new_lr_G = new_lr
                 new_lr_D = new_lr
+                new_lr_D_subnet = new_lr
             else:
                 new_lr_G = new_lr / 2
                 new_lr_D = new_lr * 2
+                new_lr_D_subnet = new_lr * 2
 
             for param_group in self.optimizer_D.param_groups:
                 param_group['lr'] = new_lr_D
+            for param_group in self.optimizer_D_subnet.param_groups:
+                param_group['lr'] = new_lr_D_subnet
             for param_group in self.optimizer_G.param_groups:
                 param_group['lr'] = new_lr_G
             print('update learning rate: %f -> %f' % (self.old_lr, new_lr))

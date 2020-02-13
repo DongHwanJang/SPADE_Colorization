@@ -179,6 +179,8 @@ class Visualizer():
 
                     if 'lab' in key.lower() or 'synth' in key.lower():
                         t = util.tensor2im(t, tile=tile, imtype=np.float32, normalize=norm, lab=True)
+                    elif 'subnet_generated_index' in key.lower():
+                        t = util.tensor2im(t, tile=tile, imtype=np.float32, normalize=norm)
                     else:
                         t = util.tensor2im(t, tile=tile, normalize=norm)
 

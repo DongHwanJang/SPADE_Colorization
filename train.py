@@ -90,7 +90,7 @@ for epoch in iter_counter.training_epochs():
                                ('subnet_warped_LAB_gt_resized', data_i['subnet_warped_LAB_gt_resized']),
                                ('subnet_index_gt_resized', data_i['subnet_index_gt_resized']),
                                ('subnet_synthesized_image', trainer.get_subnet_latest_generated()),
-                               ('subnet_synthesized_index', trainer.get_subnet_latest_index()),
+                               ('subnet_generated_index', trainer.get_subnet_latest_index()),
                                ('subnet_target_L_gray_image', data_i['subnet_target_L_gray_image']),
                                ('subnet_target_LAB', data_i['subnet_target_LAB']),
                                ('subnet_ref_LAB', data_i['subnet_ref_LAB']),
@@ -109,8 +109,14 @@ for epoch in iter_counter.training_epochs():
                                ]
 
             visuals = OrderedDict(visual_list)
-            # visuals = {**visuals, **trainer.get_latest_discriminator_pred()}
-            visuals = {**visuals}
+            if opt.train_subnet_only or data_i["is_training_subnet"]:
+                visuals = {**visuals, **trainer.get_latest_subnet_discriminator_pred()}
+            elif opt.train_subnet:
+                visuals = {**visuals, **trainer.get_latest_discriminator_pred(),
+                           **trainer.get_latest_subnet_discriminator_pred()}
+            else:
+                visuals = {**visuals, **trainer.get_latest_discriminator_pred()}
+
             visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
 
         if data_i["get_fid"]:
