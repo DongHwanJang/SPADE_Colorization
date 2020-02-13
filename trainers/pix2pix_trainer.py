@@ -151,9 +151,9 @@ class Pix2PixTrainer():
         conf_H = self.conf_map.size()[-2]
         scale = H/conf_H
 
-        for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
-            for k in range(np.max([0, int(y*scale) - marker_size // 2]), np.min([H, int(y*scale) + marker_size // 2])):
-                target_L_gray_image[:,1,j,k] = 1  # be careful for the indexing order # assign max A value
+        for k in range(np.max([0, int(y * scale) - marker_size // 2]), np.min([H, int(y * scale) + marker_size // 2])):
+            for j in range(np.max([0, int(x*scale) - marker_size // 2]), np.min([W, int(x*scale) + marker_size // 2])):
+                target_L_gray_image[:,1,k,j] = 1  # be careful for the indexing order # assign max A value
 
         return target_L_gray_image.squeeze(0)
 
@@ -183,8 +183,8 @@ class Pix2PixTrainer():
             x = np.uint8(pt//H)
             pts_lt.append((x, y))
 
-            for j in range(np.max([0,y-window_sz_h//2]), np.min([H, y + window_sz_h//2])):
-                for k in range(np.max([0, x-window_sz_w//2]), np.min([W, x + window_sz_w//2])):
+            for j in range(np.max([0, y - window_sz_h // 2]), np.min([H, y + window_sz_h // 2])):
+                for k in range(np.max([0, x - window_sz_w // 2]), np.min([W, x + window_sz_w // 2])):
                     temp_tensor[j][k]=min_value # be careful for the indexing order
 
         return pts_lt
@@ -234,7 +234,10 @@ class Pix2PixTrainer():
                 #FIXME
                 pass
             else:
+                ref_l_gray = util.denormalize((self.data["reference_L_gray_image"])[0].detach().clone())
                 atten_on_img = pointwise_attention[0].repeat(3, 1, 1)
+                atten_on_img[1, :, :] = 0  # yellow
+                atten_on_img = torch.where(atten_on_img > 1.0 / 255, atten_on_img * 255.0, ref_l_gray)
 
         # util.normalize(atten_on_img)
 
