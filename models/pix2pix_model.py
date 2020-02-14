@@ -122,11 +122,12 @@ class Pix2PixModel(torch.nn.Module):
             _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
 
             subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
+            subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
             subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
             if mode == 'subnet_generator':
                 g_loss, generated, attention, generated_index, fid = \
-                    self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
-                                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
+                    self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
+                                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
                                                        subnet_index_gt_for_loss, get_fid=data["get_fid"])
 
                 return g_loss, generated, attention, generated_index, fid
@@ -252,8 +253,8 @@ class Pix2PixModel(torch.nn.Module):
 
         return G_losses, fake_LAB, attention, conf_map, fid
 
-    def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_target_LAB,
-                                      subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_LAB_gt_resized,
+    def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
+                                      subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
                                       subnet_index_gt_for_loss, get_fid=False):
 
         G_losses = {}
@@ -267,13 +268,13 @@ class Pix2PixModel(torch.nn.Module):
 
         # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
         G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
-        G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
 
         G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
         G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
 
         # We let discriminator compare fake_LAB and target_LAB.
-        pred_fake, pred_real = self.discriminate(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        pred_fake, pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_warped_LAB_gt_resized)
 
         G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)[0]
 

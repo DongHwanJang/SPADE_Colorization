@@ -1,2 +1,2 @@
 export CUDA_VISIBLE_DEVICES=6
-python train.py --name train_l_l_general --use_reconstruction_loss --use_contextual_loss --tf_log --pair_file pair_img/train.txt --use_wandb --no_fid --dataroot /data1/imagenet/ --niter 100 --niter_decay 100 --batchSize 1 --ref_type l
+python train.py --name normalize_subnet_only --tf_log --pair_file pair_img/train.txt --dataroot /data1/imagenet/ --niter 100 --niter_decay 100 --batchSize 1 --ref_type l --gpu_ids 0 --wandb_user_name hungury96 --no_fid --use_wandb --train_subnet_only --display_freq 10 --crop_to_ref --crop_to_target --flip_to_target
