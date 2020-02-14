@@ -72,6 +72,33 @@ class Pix2PixTrainer():
         self.data = data
         self.fid = fid
 
+    def val_generator_one_step(self, data):
+        with torch.no_grad():
+
+            g_losses, generated, attention, conf_map, fid = self.pix2pix_model(data, mode='generator', is_training=False)
+
+            g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
+                             "VGG":self.opt.lambda_vgg,
+                             "smoothness":self.opt.lambda_smooth,
+                             "reconstruction":self.opt.lambda_recon,
+                             "contextual":self.opt.lambda_context,
+                             "KLD": self.opt.lambda_kld,
+                             "GAN": 1
+                             }
+
+            g_losses_with_lambda = {}
+            for key in g_losses:
+                g_losses_with_lambda[key + "_weighted"] = g_losses[key] * g_losses_lambda[key]
+
+
+            self.g_losses = g_losses
+            self.g_losses_with_lambda = g_losses_with_lambda
+            self.generated = generated
+            self.attention = attention.cpu()
+            self.conf_map = conf_map.cpu()
+            self.data = data
+            self.fid = fid
+
     def run_subnet_generator_one_step(self, data):
         self.optimizer_G.zero_grad()
 

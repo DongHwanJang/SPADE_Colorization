@@ -79,9 +79,71 @@ class Pix2PixModel(torch.nn.Module):
     # of deep networks. We used this approach since DataParallel module
     # can't parallelize custom functions, we branch to different
     # routines based on |mode|.
-    def forward(self, data, mode):
+    def forward(self, data, mode, is_training=True):
         # main branch
-        if "subnet" not in mode:
+        if is_training:
+            if "subnet" not in mode:
+                target_LAB = data["target_LAB"]
+                reference_LAB = data["reference_LAB"]
+                target_RGB = data["target_image"]
+                reference_RGB = data["reference_image"]
+                target_L_gray_image = data["target_L_gray_image"]
+                reference_L_gray_image = data["reference_L_gray_image"]
+
+                target_L, _ = self.parse_LAB(target_LAB)
+                _, reference_AB = self.parse_LAB(reference_LAB)
+
+                if mode == 'generator':
+                    g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
+                        target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
+                        reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
+
+                    return g_loss, generated, attention, conf_map, fid
+                if mode == 'discriminator':
+                    pred_fake, pred_real = self.run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
+                                                                  target_LAB, reference_RGB)
+                    d_loss = self.compute_discriminator_loss(pred_fake, pred_real)
+                    return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
+
+                if mode == 'inference':
+                    with torch.no_grad():
+                        fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB,
+                                                                             reference_L_gray_image)
+                        fake_LAB = torch.cat([target_L, fake_AB], dim=1)
+                    return fake_LAB
+
+            # subnet mode
+            if "subnet" in mode:
+                subnet_target_LAB = data["subnet_target_LAB"]
+                subnet_ref_LAB = data["subnet_ref_LAB"]
+                subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
+                subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
+
+                subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
+                _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
+
+                subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
+                subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
+                subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
+                if mode == 'subnet_generator':
+                    g_loss, generated, attention, generated_index, fid = \
+                        self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
+                                                           subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
+                                                           subnet_index_gt_for_loss, get_fid=data["get_fid"])
+
+                    return g_loss, generated, attention, generated_index, fid
+
+                if mode == 'subnet_discriminator':
+                    subnet_pred_fake, subnet_pred_real =\
+                        self.subnet_run_discriminator(subnet_target_L, subnet_target_L_gray_image, subnet_ref_L_gray_image,
+                                                      subnet_target_LAB, subnet_ref_AB)
+                    d_loss = self.subnet_compute_discriminator_loss(subnet_pred_fake, subnet_pred_real)
+                    return {"pred_fake": subnet_pred_fake, "pred_real": subnet_pred_real}, d_loss
+
+            else:
+                raise ValueError("|mode| is invalid")
+        # validation
+        else:
             target_LAB = data["target_LAB"]
             reference_LAB = data["reference_LAB"]
             target_RGB = data["target_image"]
@@ -91,56 +153,11 @@ class Pix2PixModel(torch.nn.Module):
 
             target_L, _ = self.parse_LAB(target_LAB)
             _, reference_AB = self.parse_LAB(reference_LAB)
+            g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
+                target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
+                reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
 
-            if mode == 'generator':
-                g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
-                    target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
-                    reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
-
-                return g_loss, generated, attention, conf_map, fid
-            if mode == 'discriminator':
-                pred_fake, pred_real = self.run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
-                                                              target_LAB, reference_RGB)
-                d_loss = self.compute_discriminator_loss(pred_fake, pred_real)
-                return {"pred_fake": pred_fake, "pred_real": pred_real}, d_loss
-
-            if mode == 'inference':
-                with torch.no_grad():
-                    fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB,
-                                                                         reference_L_gray_image)
-                    fake_LAB = torch.cat([target_L, fake_AB], dim=1)
-                return fake_LAB
-
-        # subnet mode
-        if "subnet" in mode:
-            subnet_target_LAB = data["subnet_target_LAB"]
-            subnet_ref_LAB = data["subnet_ref_LAB"]
-            subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
-            subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
-
-            subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
-            _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
-
-            subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
-            subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
-            subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
-            if mode == 'subnet_generator':
-                g_loss, generated, attention, generated_index, fid = \
-                    self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
-                                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
-                                                       subnet_index_gt_for_loss, get_fid=data["get_fid"])
-
-                return g_loss, generated, attention, generated_index, fid
-
-            if mode == 'subnet_discriminator':
-                subnet_pred_fake, subnet_pred_real =\
-                    self.subnet_run_discriminator(subnet_target_L, subnet_target_L_gray_image, subnet_ref_L_gray_image,
-                                                  subnet_target_LAB, subnet_ref_AB)
-                d_loss = self.subnet_compute_discriminator_loss(subnet_pred_fake, subnet_pred_real)
-                return {"pred_fake": subnet_pred_fake, "pred_real": subnet_pred_real}, d_loss
-
-        else:
-            raise ValueError("|mode| is invalid")
+            return g_loss, generated, attention, conf_map, fid
 
     def create_optimizers(self, opt):
         G_params = list(self.netG.parameters())

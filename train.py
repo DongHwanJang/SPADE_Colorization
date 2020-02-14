@@ -32,20 +32,49 @@ if opt.use_wandb:
 print(' '.join(sys.argv))
 
 # load the dataset
-dataloader = data.create_dataloader(opt)
+if opt.val_freq != -1:
+    train_dataloader, val_dataloader = data.create_dataloader(opt)
+else:
+    train_dataloader = data.create_dataloader(opt)
 
 # create trainer for our model
 trainer = Pix2PixTrainer(opt)
 
 # create tool for counting iterations
-iter_counter = IterationCounter(opt, len(dataloader))
+iter_counter = IterationCounter(opt, len(train_dataloader))
 
 # create tool for visualization
 visualizer = Visualizer(opt)
 
 for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
-    for i, data_i in enumerate(dataloader, start=iter_counter.epoch_iter):
+
+    if opt.val_freq != -1 and epoch % opt.val_freq:
+        print("Validation at epoch:" + str(epoch))
+        for data_i in val_dataloader:
+            data_i["get_fid"] = not opt.no_fid
+            data_i["is_training_subnet"] = False
+            data_i["is_reconstructing"] = False
+
+            visual_list = [
+                ('VAL_conf_map', trainer.get_latest_conf_map()),
+                ('VAL_attention_map', trainer.get_latest_attention()),
+                ('VAL_warped_img_LAB', trainer.get_latest_warped_ref_img()),
+                ('VAL_synthesized_image', trainer.get_latest_generated()),
+                ('VAL_target_image', data_i['target_image']),
+                ('VAL_reference_image', data_i['reference_image']),
+                ('VAL_target_L_gray_image', data_i['target_L_gray_image']),
+                ('VAL_target_LAB', data_i['target_LAB']),
+                ('VAL_reference_LAB', data_i['reference_LAB']),
+            ]
+
+            visuals = OrderedDict(visual_list)
+
+            visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
+            if data_i["get_fid"]:
+                visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
+
+    for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
 
         if not opt.no_fid and i % opt.fid_period == 0:
@@ -154,6 +183,8 @@ for epoch in iter_counter.training_epochs():
               (epoch, iter_counter.total_steps_so_far))
         trainer.save('latest')
         trainer.save(epoch)
+
+
 
 if opt.use_wandb:
     wandb.save(opt.name + ".h5")

@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import importlib
 import torch.utils.data
 from data.base_dataset import BaseDataset
-
+import math
 
 def find_dataset_using_name(dataset_name):
     # Given the option --dataset [datasetname],
@@ -42,13 +42,39 @@ def create_dataloader(opt):
     dataset = find_dataset_using_name(opt.dataset_mode)
     instance = dataset()
     instance.initialize(opt)
-    print("dataset [%s] of size %d was created" %
-          (type(instance).__name__, len(instance)))
-    dataloader = torch.utils.data.DataLoader(
-        instance,
-        batch_size=opt.batchSize,
-        shuffle=not opt.serial_batches,
-        num_workers=int(opt.nThreads),
-        drop_last=opt.isTrain
-    )
-    return dataloader
+
+
+    if opt.val_freq != -1:
+        val_len = math.floor(len(instance) * 0.1)
+        train_len = len(instance) - val_len
+
+        train_dataset, val_dataset = torch.utils.data.random_split(instance, (train_len, val_len))
+
+        print("dataset [%s] of size %d was created" %
+              (type(instance).__name__, len(instance)))
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=opt.batchSize,
+            shuffle=not opt.serial_batches,
+            num_workers=int(opt.nThreads),
+            drop_last=opt.isTrain
+        )
+
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=opt.batchSize,
+            shuffle=not opt.serial_batches,
+            num_workers=int(opt.nThreads),
+            drop_last=False
+        )
+        return train_dataloader, val_dataloader
+
+    else:
+        train_dataloader = torch.utils.data.DataLoader(
+            instance,
+            batch_size=opt.batchSize,
+            shuffle=not opt.serial_batches,
+            num_workers=int(opt.nThreads),
+            drop_last=opt.isTrain
+        )
+        return train_dataloader
