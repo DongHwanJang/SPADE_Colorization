@@ -78,12 +78,12 @@ class Pix2PixTrainer():
         g_losses, generated, attention, generated_index, fid = self.pix2pix_model(data, mode='subnet_generator')
 
         g_losses_lambda = {
-                         "softmax": self.opt.lambda_subnet_softmax,
-                         "VGG": self.opt.lambda_subnet_vgg,
-                         "L1": self.opt.lambda_subnet_l1,
-                         "smoothness": self.opt.lambda_subnet_smooth,
-                         "GAN_Feat": self.opt.lambda_subnet_feat,
-                         "GAN":1
+                         "subnet_softmax": self.opt.lambda_subnet_softmax,
+                         "subnet_VGG": self.opt.lambda_subnet_vgg,
+                         "subnet_L1": self.opt.lambda_subnet_l1,
+                         "subnet_smoothness": self.opt.lambda_subnet_smooth,
+                         "subnet_GAN_Feat": self.opt.lambda_subnet_feat,
+                         "subnet_GAN": 1
                          }
 
         g_losses_with_lambda = {}

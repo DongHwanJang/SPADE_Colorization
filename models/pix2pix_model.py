@@ -27,7 +27,7 @@ class Pix2PixModel(torch.nn.Module):
 
         self.netG, self.netD, self.netD_subnet, self.netE = self.initialize_networks(opt)
 
-        if opt.use_wandb:
+        if opt.use_wandb and len(opt.gpu_ids) <= 1:
             opt.wandb.watch(self.netG, log="all")
             opt.wandb.watch(self.netD, log="all")
             opt.wandb.watch(self.netD_subnet, log="all")
@@ -266,17 +266,16 @@ class Pix2PixModel(torch.nn.Module):
         subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
 
         # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
-        G_losses['softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
-        G_losses['VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
+        G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
 
-        G_losses['L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
-        G_losses["smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
+        G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
 
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
 
-        G_losses['GAN'] = self.criterionGAN(pred_fake, True,
-                                            for_discriminator=False)[0]
+        G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)[0]
 
         # calculate feature matching loss with L1 distance
         if not self.opt.no_ganFeat_loss:
@@ -290,7 +289,7 @@ class Pix2PixModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss / num_D
-            G_losses['GAN_Feat'] = GAN_Feat_loss[0]
+            G_losses['subnet_GAN_Feat'] = GAN_Feat_loss[0]
 
         fid = None
         if get_fid:
