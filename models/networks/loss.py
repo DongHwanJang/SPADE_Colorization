@@ -61,9 +61,11 @@ class GANLoss(nn.Module):
             target_tensor = self.get_target_tensor(input, target_is_real)
             loss = F.binary_cross_entropy_with_logits(input, target_tensor)
             return loss
+
         elif self.gan_mode == 'ls':
             target_tensor = self.get_target_tensor(input, target_is_real)
             return F.mse_loss(input, target_tensor)
+
         elif self.gan_mode == 'hinge':
             if for_discriminator:
                 if target_is_real:
@@ -72,6 +74,7 @@ class GANLoss(nn.Module):
                 else:
                     minval = torch.min(-input - 1, self.get_zero_tensor(input))
                     loss = -torch.mean(minval)
+
             else:
                 assert target_is_real, "The generator's hinge loss must be aiming for real"
                 # TODO: modify GANloss for generator

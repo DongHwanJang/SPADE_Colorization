@@ -82,6 +82,9 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--subnet_crop_size', type=int, default=64,
                             help='Crop to the width of crop_size (for subnet only)')
 
+        parser.add_argument('--val_period', type=int, default=5,
+                            help='Run validation after this many epochs')
+
         self.isTrain = True
 
         return parser

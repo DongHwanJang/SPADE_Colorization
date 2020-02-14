@@ -92,30 +92,9 @@ for epoch in iter_counter.training_epochs():
             subnet_losses = trainer.get_subnet_latest_losses()
             subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
 
-            # for key, val in subnet_losses.items():
-            #     if key == "pred_fake":
-            #         print(key + ": " + str(val))
-            #         print("len(key): " + str(len(val)) )
-            #         print("len(key[0]): " + str(len(val[0])) + " type:" + str(type(val[0])))
-            #         print("len(key[0][0]): " + str(len(val[0][0])) + " type:" + str(type(val[0][0])))
-            #         print("len(key[0][0][0]): " + str(val[0][0].shape))
-            #         print("len(key[0][0][1]): " + str(val[0][1].shape))
-            #
-            #         print("len(key[1]): " + str(len(val[1])) + " type:" + str(type(val)[1]))
-
         else:
             losses = trainer.get_latest_losses()
             losses = {**losses, **trainer.get_latest_discriminator_pred()}
-            # for key, val in losses.items():
-            #     if key == "pred_fake":
-            #         print(key + ": " + str(val))
-            #         print("len(key): " + str(len(val)) )
-            #         print("len(key[0]): " + str(len(val[0])) + " type:" + str(type(val[0])))
-            #         print("len(key[0][0]): " + str(len(val[0][0])) + " type:" + str(type(val[0][0])))
-            #         print("len(key[0][0][0]): " + str(val[0][0].shape))
-            #         print("len(key[0][0][1]): " + str(val[0][1].shape))
-            #
-            #         print("len(key[1]): " + str(len(val[1])) + " type:" + str(type(val)[1]))
 
         total_losses = {**losses, **subnet_losses}
 
