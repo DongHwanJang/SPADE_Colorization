@@ -342,15 +342,20 @@ class NonLocalBlock(nn.Module):
         super(NonLocalBlock, self).__init__()
 
         self.register_buffer('tau', torch.FloatTensor([0.01]))
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+
+        self.use_attention_convs = opt.use_attention_convs
+
+        if self.use_attention_convs:
+            self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+            self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
 
         self.softmax = nn.Softmax(dim=-1)
 
         self.subnet_only = subnet_only
 
         if not self.subnet_only:
-            self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+            if self.use_attention_convs:
+                self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
 
             self.use_gamma = opt.use_gamma
             if self.use_gamma:
@@ -368,11 +373,15 @@ class NonLocalBlock(nn.Module):
         B, C_key, H_key, W_key = key.shape
         B, C_query, H_query, W_query = query.shape
 
-        # B x C x H x W -> B x C x (H*W) -> B x N x C
-        proj_query = self.query_conv(query).view(B, -1, W_query * H_query).permute(0, 2, 1)
+
+        if self.use_attention_convs:
+            query = self.query_conv(query)
+            key = self.key_conv(key)
 
         # B x C x H x W -> B X C x (W_key*H_key)
-        proj_key = self.key_conv(key).view(B, -1, W_key * H_key)
+        proj_query = query.view(B, -1, W_query * H_query).permute(0, 2, 1)
+        # B x C x H x W -> B x C x (H*W) -> B x N x C
+        proj_key = key.view(B, -1, W_key * H_key)
 
         if unit_mult:
             proj_query = proj_query - torch.mean(proj_query, dim=1, keepdim=True)
@@ -397,7 +406,10 @@ class NonLocalBlock(nn.Module):
         else:
             _, C_value, _, _ = value.shape
 
-            proj_value = self.value_conv(value).view(B, -1, W_key * H_key)  # B X 256 X N_key
+            if self.use_attention_convs:
+                value = self.value_conv(value)
+
+            proj_value = value.view(B, -1, W_key * H_key)  # B X 256 X N_key
 
             out = torch.bmm(proj_value, attention.permute(0, 2, 1)) # B x 256 x N_query
             out = out.view(B, C_value, H_query, W_query)
