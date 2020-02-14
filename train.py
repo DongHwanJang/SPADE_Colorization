@@ -49,12 +49,14 @@ visualizer = Visualizer(opt)
 for epoch in iter_counter.training_epochs():
     iter_counter.record_epoch_start(epoch)
 
-    if opt.val_freq != -1 and epoch % opt.val_freq:
-        print("Validation at epoch:" + str(epoch))
-        for data_i in val_dataloader:
+    if opt.val_freq != -1 and epoch % opt.val_freq == 0:
+        print("Validation at epoch: " + str(epoch))
+        for i, data_i in enumerate(val_dataloader):
             data_i["get_fid"] = not opt.no_fid
             data_i["is_training_subnet"] = False
             data_i["is_reconstructing"] = False
+
+            trainer.val_generator_one_step(data_i)
 
             visual_list = [
                 ('VAL_conf_map', trainer.get_latest_conf_map()),
