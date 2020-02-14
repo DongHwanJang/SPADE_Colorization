@@ -54,17 +54,13 @@ class Pix2pixDataset(BaseDataset):
         # target_LAB = lab_loader(self.opt, target_path, is_ref=False)
         # reference_LAB = lab_loader(self.opt, reference_path, is_ref=True)
         target_rgb_pil = rgb_loader(self.opt, target_path)
-        # FIXME This part is different
-        ################################################
-        # reference_rgb_pil = rgb_loader(self.opt, reference_path)
-        reference_rgb_pil = rgb_loader(self.opt, target_path)
+        reference_rgb_pil = rgb_loader(self.opt, reference_path)
 
-        transform_tgt_image_rgb = get_transform(self.opt, params, normalize=False, toTensor=False, isRef=True)
-        transform_ref_image_rgb = get_transform(self.opt, params, normalize=False, toTensor=False, isRef=True)
+        transform_image_rgb = get_transform(self.opt, params, normalize=False, toTensor=False)
+        # transform_image_LAB = get_transform(self.opt, params, normalize=False, toTensor=False)
 
-        target_rgb_pil = transform_tgt_image_rgb(target_rgb_pil)
-        reference_rgb_pil = transform_ref_image_rgb(reference_rgb_pil)
-        ################################################
+        target_rgb_pil = transform_image_rgb(target_rgb_pil)
+        reference_rgb_pil = transform_image_rgb(reference_rgb_pil)
 
         ####### LAB
         target_lab = rgb_pil2lab_tensor(target_rgb_pil)
