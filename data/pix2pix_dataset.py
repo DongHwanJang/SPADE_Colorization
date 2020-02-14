@@ -88,6 +88,7 @@ class Pix2pixDataset(BaseDataset):
 
         subnet_warped_RGB_gt_resized = create_warpped_image(index_image_gt, ref_warp, target_gt)
         subnet_warped_LAB_gt_resized = rgb_pil2lab_tensor(subnet_warped_RGB_gt_resized)
+        subnet_warped_RGB_gt_resized = F.normalize(F.to_tensor(subnet_warped_RGB_gt_resized), mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
         subnet_target_lab = rgb_pil2lab_tensor(subnet_target)
         subnet_ref_lab = rgb_pil2lab_tensor(subnet_ref)
@@ -107,6 +108,7 @@ class Pix2pixDataset(BaseDataset):
         subnet_args["subnet_target_L_gray_image"] = subnet_target_L_gray_image
         subnet_args["subnet_ref_L_gray_image"] = subnet_ref_L_gray_image
         subnet_args["subnet_warped_LAB_gt_resized"] = subnet_warped_LAB_gt_resized
+        subnet_args["subnet_warped_RGB_gt_resized"] = subnet_warped_RGB_gt_resized
         subnet_args["subnet_index_gt_resized"] = index_image
         subnet_args["subnet_index_gt_for_loss"] = subnet_index_gt_for_loss
 
