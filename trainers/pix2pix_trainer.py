@@ -108,21 +108,40 @@ class Pix2PixTrainer():
 
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
-        d_pred_dict, d_losses = self.pix2pix_model(data, mode='discriminator')
+        d_out, d_losses = self.pix2pix_model(data, mode='discriminator')
         d_loss = sum(d_losses.values()).mean()
         d_loss.backward()
         self.optimizer_D.step()
         self.d_losses = d_losses
-        self.d_pred = d_pred_dict
+        self.d_pred = self.d_output_to_pred(d_out)
 
     def run_subnet_discriminator_one_step(self, data):
         self.optimizer_D_subnet.zero_grad()
-        d_pred_dict, d_losses = self.pix2pix_model(data, mode='subnet_discriminator')
+        d_output, d_losses = self.pix2pix_model(data, mode='subnet_discriminator')
         d_loss = sum(d_losses.values()).mean()
         d_loss.backward()
         self.optimizer_D_subnet.step()
         self.subnet_d_losses = d_losses
-        self.subnet_d_pred = d_pred_dict
+
+        self.subnet_d_pred = self.d_output_to_pred(d_output)
+
+    def d_output_to_pred(self, d_out):
+        d_pred_dict = {}
+        for key, val in d_out.items():
+            if isinstance(val, list):
+
+                pred = 0
+                for pred_i in val:
+                    if isinstance(pred_i, list):
+                        pred_i = pred_i[-1]
+
+                    # for b in pred_i.size[0]:
+                    bs = 1 if len(pred_i.size()) == 0 else pred_i.size(0)
+                    new_pred = pred_i.view(bs, -1)
+                    new_pred = torch.mean(new_pred, dim=1)
+                    pred += new_pred
+            d_pred_dict[key] = pred
+        return d_pred_dict
 
     def get_latest_losses(self):
         return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
