@@ -85,7 +85,7 @@ for epoch in iter_counter.training_epochs():
 
                 visualizer.display_current_results(visuals, epoch, i)
                 if data_i["get_fid"]:
-                    visualizer.display_value("VAL_fid", trainer.get_latest_fid(), i)
+                    visualizer.display_value("VAL" + str(epoch) + "_fid", trainer.get_latest_fid(), i)
 
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
