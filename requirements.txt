@@ -63,7 +63,6 @@ shortuuid==0.5.0
 six==1.13.0
 smmap2==2.0.5
 subprocess32==3.5.4
-tensorboard==2.1.0
 tensorflow-estimator==1.14.0
 tensorflow-gpu==1.14.0
 termcolor==1.1.0
@@ -75,7 +74,7 @@ tornado==6.0.3
 tqdm==4.35.0
 urllib3==1.25.7
 visdom==0.1.8.9
-wandb==0.8.22
+wandb
 watchdog==0.10.0
 websocket-client==0.57.0
 Werkzeug==0.16.0

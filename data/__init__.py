@@ -43,7 +43,6 @@ def create_dataloader(opt):
     instance = dataset()
     instance.initialize(opt)
 
-
     if opt.val_freq != -1:
         val_len = math.floor(len(instance) * 0.1)
         train_len = len(instance) - val_len
