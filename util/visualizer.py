@@ -89,7 +89,6 @@ class Visualizer():
             for label, image_numpy in visuals.items():
                 # print(label + ": " + str(image_numpy.shape))
                 if len(image_numpy.shape) >= 4:
-
                     image_numpy = image_numpy[0]
                 self.wandb.log({label: self.wandb.Image(image_numpy)}, step = step)
 
