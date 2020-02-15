@@ -83,12 +83,19 @@ class Pix2PixModel(torch.nn.Module):
         # main branch
         if is_training:
             if "subnet" not in mode:
+
                 target_LAB = data["target_LAB"]
-                reference_LAB = data["reference_LAB"]
                 target_RGB = data["target_image"]
-                reference_RGB = data["reference_image"]
                 target_L_gray_image = data["target_L_gray_image"]
-                reference_L_gray_image = data["reference_L_gray_image"]
+
+                if data["is_reconstructing"]:
+                    reference_RGB = data["target_image"]
+                    reference_LAB = data["target_LAB"]
+                    reference_L_gray_image = data["target_L_gray_image"]
+                else:
+                    reference_LAB = data["reference_LAB"]
+                    reference_RGB = data["reference_image"]
+                    reference_L_gray_image = data["reference_L_gray_image"]
 
                 target_L, _ = self.parse_LAB(target_LAB)
                 _, reference_AB = self.parse_LAB(reference_LAB)
@@ -99,6 +106,7 @@ class Pix2PixModel(torch.nn.Module):
                         reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
 
                     return g_loss, generated, attention, conf_map, fid
+
                 if mode == 'discriminator':
                     pred_fake, pred_real = self.run_discriminator(target_L, target_L_gray_image, reference_L_gray_image,
                                                                   target_LAB, reference_RGB)
@@ -261,7 +269,6 @@ class Pix2PixModel(torch.nn.Module):
         if self.opt.use_smoothness_loss:
             G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
 
-        # TODO is_reconstructing.size() is not 1 for the batch input case
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
 

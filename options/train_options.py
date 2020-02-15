@@ -76,8 +76,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lambda_kld', type=float, default=0.05)
         parser.add_argument("--use_attention_convs", action="store_true")
 
-        parser.add_argument('--reconstruction_period', type=int, default=2)
-        parser.add_argument('--train_subnet_period', type=int, default=2)
+        parser.add_argument('--reconstruction_period', type=int, default=10)
+        parser.add_argument('--train_subnet_period', type=int, default=10)
         parser.add_argument('--subnet_load_size', type=int, default=256,
                             help='Scale images to this size (for subnet only)')
         parser.add_argument('--subnet_crop_size', type=int, default=64,
