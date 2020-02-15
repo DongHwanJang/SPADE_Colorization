@@ -44,8 +44,8 @@ class Pix2PixModel(torch.nn.Module):
                 # set vgg=None because the version for vgg in perceptual loss may be different
                 # with that in using corr_feat
                 self.criterionVGG = networks.VGGLoss(self.opt, self.opt.gpu_ids)
-            if opt.use_vae:
-                self.KLDLoss = networks.KLDLoss()
+            # if opt.use_vae:
+            #     self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
                 self.smoothnessLoss = networks.TotalVariationLoss()
             if opt.use_reconstruction_loss:
@@ -249,18 +249,15 @@ class Pix2PixModel(torch.nn.Module):
 
         return D_losses
 
-    # def encode_z(self, real_image):
-    #     mu, logvar = self.netE(real_image)
-    #     z = self.reparameterize(mu, logvar)
-    #     return z, mu, logvar
+    def encode_z(self, real_image):
+        z = self.netE(real_image)
+        return z
 
     def generate_fake(self, target_L_gray_image, reference_RGB, reference_L_gray_image, compute_kld_loss=False):
         z = None
         KLD_loss = None
-        # if self.opt.use_vae:
-        #     z, mu, logvar = self.encode_z(real_image)
-        #     if compute_kld_loss:
-        #         KLD_loss = self.KLDLoss(mu, logvar)
+        if self.opt.use_vae:
+            z = self.encode_z(target_L_gray_image)
 
         # G forward during training
         if self.opt.ref_type == 'l':

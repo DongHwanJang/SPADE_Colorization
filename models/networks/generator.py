@@ -32,7 +32,8 @@ class SPADEGenerator(BaseNetwork):
 
         if opt.use_vae:
             # In case of VAE, we will sample from random z vector
-            self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
+            #self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
+            self.fc = nn.Conv2d(nf*8, nf*16, 3, padding=1) # [512, 8, 8] -> [1024 ,8 ,8]
         else:
             # Otherwise, we make the network deterministic by starting with
             # downsampled segmentation map instead of random z
