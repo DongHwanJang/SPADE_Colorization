@@ -27,6 +27,8 @@ class BaseOptions():
         parser.add_argument('--norm_D', type=str, default='spectralinstance', help='instance normalization or batch normalization')
         parser.add_argument('--norm_E', type=str, default='spectralinstance', help='instance normalization or batch normalization')
         parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
+        parser.add_argument('--use_confmap_mask', action='store_true', help='use if you want to use conf_map as soft mask')
+
 
         # input/output sizes
         parser.add_argument('--batchSize', type=int, default=1, help='input batch size')

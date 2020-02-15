@@ -64,13 +64,15 @@ def get_nonspade_norm_layer(opt, norm_type='instance'):
 # |norm_nc|: the #channels of the normalized activations, hence the output dim of SPADE
 # |label_nc|: the #channels of the input semantic map, hence the input dim of SPADE
 class SPADE(nn.Module):
-    def __init__(self, config_text, norm_nc, label_nc):
+    def __init__(self, config_text, norm_nc, label_nc, use_confmap_mask=False):
         super().__init__()
 
         assert config_text.startswith('spade')
         parsed = re.search('spade(\D+)(\d)x\d', config_text)
         param_free_norm_type = str(parsed.group(1))
         ks = int(parsed.group(2))
+
+        self.use_confmap_mask = use_confmap_mask
 
         if param_free_norm_type == 'instance':
             self.param_free_norm = nn.InstanceNorm2d(norm_nc, affine=False)
@@ -93,7 +95,8 @@ class SPADE(nn.Module):
         self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
         self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
 
-        self.mlp_conv = nn.Conv2d(norm_nc + 1, norm_nc, kernel_size=1)  # fit concat.ed result to output size
+        if use_confmap_mask:
+            self.mlp_conv = nn.Conv2d(norm_nc + 1, norm_nc, kernel_size=1)  # fit concat.ed result to output size
 
     def forward(self, x, seg_map, conf_map=None):
 
@@ -113,7 +116,11 @@ class SPADE(nn.Module):
         # TODO: make an option to select whether use confidence or not, rather using conf_map=None or not
         if conf_map is not None:
             conf_map = F.interpolate(conf_map.detach(), size=x.size()[2:], mode='nearest')
-            concat_map = torch.cat([out, conf_map], dim=1)
-            out = self.mlp_conv(concat_map)
+
+            if self.use_confmap_mask:
+                out = conf_map * out
+            else:
+                concat_map = torch.cat([out, conf_map], dim=1)
+                out = self.mlp_conv(concat_map)
 
         return out
