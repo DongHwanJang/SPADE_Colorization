@@ -399,8 +399,10 @@ class NonLocalBlock(nn.Module):
         if subnet_only:
             # attention: B x H_query x W_query x H_key x W_key
             # corr_map: B x N_query x N_key
-            attention = attention.view(B, H_query, W_query, H_key, W_key)
-            corr_map = corr_map.view(B, H_query * W_query, H_key, W_key)  # B x N_query x H_key x W_key
+            attention = attention.permute(0, 2, 1)
+            attention = attention.view(B, H_key, W_key, H_query, W_query)
+            corr_map = corr_map.permute(0, 2, 1)  # B x N_key x N_query
+            corr_map = corr_map.view(B, H_key * W_key, H_query, W_query)  # B x N_query x H_key x W_key
             return attention, corr_map
 
         else:
