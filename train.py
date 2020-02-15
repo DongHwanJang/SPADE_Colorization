@@ -88,6 +88,11 @@ for epoch in iter_counter.training_epochs():
                     visualizer.display_value("VAL_fid", trainer.get_latest_fid(), i)
 
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
+
+        data_i["get_fid"] = not opt.no_fid and i % opt.val_display_freq == 0
+        data_i["is_training_subnet"] = False
+        data_i["is_reconstructing"] = False
+
         iter_counter.record_one_iteration()
 
         if not opt.no_fid and i % opt.fid_period == 0:
