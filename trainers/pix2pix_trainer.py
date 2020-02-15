@@ -170,8 +170,11 @@ class Pix2PixTrainer():
             d_pred_dict[key] = pred
         return d_pred_dict
 
-    def get_latest_losses(self):
-        return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
+    def get_latest_losses(self, get_D_losses=True):
+        if get_D_losses:
+            return {**self.g_losses, **self.g_losses_with_lambda, **self.d_losses}
+        else:
+            return {**self.g_losses, **self.g_losses_with_lambda}
 
     def get_subnet_latest_losses(self):
         return {**self.subnet_g_losses, **self.subnet_g_losses_with_lambda, **self.subnet_d_losses}

@@ -51,30 +51,41 @@ for epoch in iter_counter.training_epochs():
 
     if opt.val_freq != -1 and epoch % opt.val_freq == 0:
         print("Validation at epoch: " + str(epoch))
-        for i, data_i in enumerate(val_dataloader):
-            data_i["get_fid"] = not opt.no_fid
+        for i, data_i in zip(range(1, len(val_dataloader) + 1), val_dataloader):
+            data_i["get_fid"] = not opt.no_fid and i % opt.val_display_freq == 0
             data_i["is_training_subnet"] = False
             data_i["is_reconstructing"] = False
 
             trainer.val_generator_one_step(data_i)
 
-            visual_list = [
-                ('VAL_conf_map', trainer.get_latest_conf_map()),
-                ('VAL_attention_map', trainer.get_latest_attention()),
-                ('VAL_warped_img_LAB', trainer.get_latest_warped_ref_img()),
-                ('VAL_synthesized_image', trainer.get_latest_generated()),
-                ('VAL_target_image', data_i['target_image']),
-                ('VAL_reference_image', data_i['reference_image']),
-                ('VAL_target_L_gray_image', data_i['target_L_gray_image']),
-                ('VAL_target_LAB', data_i['target_LAB']),
-                ('VAL_reference_LAB', data_i['reference_LAB']),
-            ]
 
-            visuals = OrderedDict(visual_list)
+            # get losses and rename the keys to include "VAL_"
+            losses = trainer.get_latest_losses(get_D_losses=False)
+            for key in losses:
+                new_key = "VAL" + str(epoch) + "_" + key
+                losses[new_key] = losses[key]
+                del losses[key]
 
-            visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
-            if data_i["get_fid"]:
-                visualizer.display_value("VAL_fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
+            visualizer.plot_current_errors(losses, i)
+
+            if i % opt.val_display_freq == 0:
+                visual_list = [
+                    ('VAL' + str(epoch) + '_conf_map', trainer.get_latest_conf_map()),
+                    ('VAL' + str(epoch) + '_attention_map', trainer.get_latest_attention()),
+                    ('VAL' + str(epoch) + '_warped_img_LAB', trainer.get_latest_warped_ref_img()),
+                    ('VAL' + str(epoch) + '_synthesized_image', trainer.get_latest_generated()),
+                    ('VAL' + str(epoch) + '_target_image', data_i['target_image']),
+                    ('VAL' + str(epoch) + '_reference_image', data_i['reference_image']),
+                    ('VAL' + str(epoch) + '_target_L_gray_image', data_i['target_L_gray_image']),
+                    ('VAL' + str(epoch) + '_target_LAB', data_i['target_LAB']),
+                    ('VAL' + str(epoch) + '_reference_LAB', data_i['reference_LAB']),
+                ]
+
+                visuals = OrderedDict(visual_list)
+
+                visualizer.display_current_results(visuals, epoch, i)
+                if data_i["get_fid"]:
+                    visualizer.display_value("VAL_fid", trainer.get_latest_fid(), i)
 
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
@@ -157,6 +168,7 @@ for epoch in iter_counter.training_epochs():
         if data_i["get_fid"]:
             if opt.train_subnet_only:
                 visualizer.display_value("subnet_fid", trainer.get_subnet_latest_fid(), iter_counter.total_steps_so_far)
+
             else:
                 visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
 
