@@ -294,7 +294,7 @@ class Pix2PixModel(torch.nn.Module):
         G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
         G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
 
-        G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
+        G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
         if self.opt.use_smoothness_loss:
             G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
 
