@@ -402,7 +402,7 @@ class NonLocalBlock(nn.Module):
             attention = attention.permute(0, 2, 1)
             attention = attention.view(B, H_key, W_key, H_query, W_query)
             corr_map = corr_map.permute(0, 2, 1)  # B x N_key x N_query
-            corr_map = corr_map.view(B, H_key * W_key, H_query, W_query)  # B x N_query x H_key x W_key
+            corr_map = corr_map.view(B, H_key * W_key, H_query, W_query)  # B x N_key x H_query x W_query
             return attention, corr_map
 
         else:
