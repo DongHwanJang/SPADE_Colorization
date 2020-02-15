@@ -397,9 +397,8 @@ class Pix2PixModel(torch.nn.Module):
         subnet_ref_AB = F.interpolate(subnet_ref_AB, size=(H_key, W_key), mode="bilinear")  # B x 2 x H_key x W_key
         subnet_ref_AB = subnet_ref_AB.view(B, 2, -1)  # 1 x 2 x N_key
 
-        attention_warp = attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
-        attention_warp = attention_warp.view(B, -1, H_key * W_key)  # N_query x N_key
-        attention_warp = attention_warp.permute(0, 2, 1)  # N_key x N_query
+        attention_warp = attention.view(B, H_key, H_key, -1)  # B x H_key x W_key x N_query
+        attention_warp = attention_warp.view(B, -1, H_query * W_query)  # N_key x N_query
 
         warped_AB = torch.bmm(subnet_ref_AB, attention_warp).view(B, 2, H_query, W_query)  # B x 2 x H_query x W_query
 
