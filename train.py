@@ -94,7 +94,7 @@ for epoch in iter_counter.training_epochs():
         if not opt.no_fid and i % opt.fid_period == 0:
             data_i["get_fid"] = True
 
-        if opt.no_fid or i % opt.fid_period != 0:
+        else:
             data_i["get_fid"] = False
 
         # if i % opt.D_steps_per_G == 0:
@@ -118,18 +118,17 @@ for epoch in iter_counter.training_epochs():
                 subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
 
             # main loop
-            else:
-                if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
-                    data_i["is_reconstructing"] = True
-                    trainer.run_generator_one_step(data_i)
-                    trainer.run_discriminator_one_step(data_i)
-
-                data_i["is_training_subnet"] = False
-                data_i["is_reconstructing"] = False
+            if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
+                data_i["is_reconstructing"] = True
                 trainer.run_generator_one_step(data_i)
                 trainer.run_discriminator_one_step(data_i)
-                losses = trainer.get_latest_losses()
-                losses = {**losses, **trainer.get_latest_discriminator_pred()}
+
+            data_i["is_training_subnet"] = False
+            data_i["is_reconstructing"] = False
+            trainer.run_generator_one_step(data_i)
+            trainer.run_discriminator_one_step(data_i)
+            losses = trainer.get_latest_losses()
+            losses = {**losses, **trainer.get_latest_discriminator_pred()}
 
         total_losses = {**losses, **subnet_losses}
 
@@ -172,6 +171,9 @@ for epoch in iter_counter.training_epochs():
                 visualizer.display_value("subnet_fid", trainer.get_subnet_latest_fid(), iter_counter.total_steps_so_far)
 
             else:
+                if (opt.train_subnet and i % opt.train_subnet_period == 0):
+                    visualizer.display_value("subnet_fid", trainer.get_subnet_latest_fid(),
+                                             iter_counter.total_steps_so_far)
                 visualizer.display_value("fid", trainer.get_latest_fid(), iter_counter.total_steps_so_far)
 
         if iter_counter.needs_saving():
