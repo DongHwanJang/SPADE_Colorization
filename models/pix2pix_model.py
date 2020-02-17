@@ -124,20 +124,36 @@ class Pix2PixModel(torch.nn.Module):
             if "subnet" in mode:
                 subnet_target_LAB = data["subnet_target_LAB"]
                 subnet_ref_LAB = data["subnet_ref_LAB"]
-                subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
-                subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
 
-                subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
-                _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
+                target_L_gray_image = data["target_L_gray_image"]
+                ref_L_gray_image = data["ref_L_gray_image"]
+                reference_LAB = data["reference_LAB"]
+                target_L, _ = self.parse_LAB(target_LAB)
+                _, reference_AB = self.parse_LAB(reference_LAB)
 
                 subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
                 subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
                 subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
                 if mode == 'subnet_generator':
+
+                    if data["is_subnet_reconstructing"]:
+                        subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
+                        subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
+
+                        subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
+                        _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
+
+                        subnet_ref_AB = reference_AB
+                    else:
+                        subnet_target_L = target_L
+                        subnet_target_L_gray_image = target_L_gray_image
+                        subnet_ref_L_gray_image = ref_L_gray_image
+                        subnet_ref_AB = reference_AB
+
                     g_loss, generated, attention, generated_index, fid = \
                         self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
                                                            subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
-                                                           subnet_index_gt_for_loss, get_fid=data["get_fid"])
+                                                           subnet_index_gt_for_loss, get_fid=data["get_fid"], is_subnet_reconstructing=data["is_subnet_reconstructing"])
 
                     return g_loss, generated, attention, generated_index, fid
 
@@ -279,42 +295,41 @@ class Pix2PixModel(torch.nn.Module):
 
     def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
                                       subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
-                                      subnet_index_gt_for_loss, get_fid=False):
+                                      subnet_index_gt_for_loss, get_fid=False, is_subnet_reconstructing=False):
 
         G_losses = {}
 
         subnet_fake_AB_resized, attention, corr_map = self.subnet_generate_fake(subnet_target_L_gray_image,
                                                                                 subnet_ref_AB, subnet_ref_L_gray_image)
 
-        target_L_resized = F.interpolate(subnet_target_L, size=(64, 64), mode='bilinear')
+        target_L_resized=F.interpolate(subnet_target_L, size=(64, 64), mode='bilinear')
         subnet_fake_LAB_resized = torch.cat([target_L_resized, subnet_fake_AB_resized], dim=1)
         subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
 
-        # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
-        G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
+        if is_subnet_reconstructing:
+            # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
+            G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
+            G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
         G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
-
-        G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_LAB_gt_resized)
         G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
 
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_warped_LAB_gt_resized)
-
         G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)[0]
 
-        # calculate feature matching loss with L1 distance
-        if not self.opt.no_ganFeat_loss:
-            num_D = len(pred_fake)
-            GAN_Feat_loss = self.FloatTensor(1).fill_(0)
-
-            for i in range(num_D):  # for each discriminator
-                # last output is the final prediction, so we exclude it
-                num_intermediate_outputs = len(pred_fake[i]) - 1
-                for j in range(num_intermediate_outputs):  # for each layer output
-                    unweighted_loss = self.criterionFeat(
-                        pred_fake[i][j], pred_real[i][j].detach())
-                    GAN_Feat_loss += unweighted_loss / num_D
-            G_losses['subnet_GAN_Feat'] = GAN_Feat_loss[0]
+        # # calculate feature matching loss with L1 distance
+        # if not self.opt.no_ganFeat_loss:
+        #     num_D = len(pred_fake)
+        #     GAN_Feat_loss = self.FloatTensor(1).fill_(0)
+        #
+        #     for i in range(num_D):  # for each discriminator
+        #         # last output is the final prediction, so we exclude it
+        #         num_intermediate_outputs = len(pred_fake[i]) - 1
+        #         for j in range(num_intermediate_outputs):  # for each layer output
+        #             unweighted_loss = self.criterionFeat(
+        #                 pred_fake[i][j], pred_real[i][j].detach())
+        #             GAN_Feat_loss += unweighted_loss / num_D
+        #     G_losses['subnet_GAN_Feat'] = GAN_Feat_loss[0]
 
         fid = None
         if get_fid:

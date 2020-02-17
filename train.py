@@ -103,11 +103,19 @@ for epoch in iter_counter.training_epochs():
 
         # subnet only
         if opt.train_subnet_only:
+
+            # subnet reconstruction loop
+            if opt.subnet_reconstruction_period >= 0 and i % opt.subnet_reconstruction_period == 0:
+                data_i["is_subnet_reconstructing"] = True
+                trainer.run_subnet_generator_one_step(data_i)
+                trainer.run_subnet_discriminator_one_step(data_i)
+
             data_i["is_training_subnet"] = True
             trainer.run_subnet_generator_one_step(data_i)
             trainer.run_subnet_discriminator_one_step(data_i)
             subnet_losses = trainer.get_subnet_latest_losses()
             subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
+
 
         else:
             if opt.train_subnet and i % opt.train_subnet_period == 0:
