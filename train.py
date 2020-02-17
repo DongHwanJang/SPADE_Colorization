@@ -66,7 +66,7 @@ for epoch in iter_counter.training_epochs():
                 losses[new_key] = losses[key]
                 del losses[key]
 
-            visualizer.plot_current_errors(losses, i)
+            # visualizer.plot_current_errors(losses, i)
 
             if i % opt.val_display_freq == 0:
                 visual_list = [
@@ -87,6 +87,7 @@ for epoch in iter_counter.training_epochs():
                 if data_i["get_fid"]:
                     visualizer.display_value("VAL" + str(epoch) + "_fid", trainer.get_latest_fid(), i)
 
+
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
 
@@ -100,34 +101,35 @@ for epoch in iter_counter.training_epochs():
         losses = {}
         subnet_losses = {}
 
-        if opt.train_subnet and i % opt.train_subnet_period == 0:
-            data_i["is_training_subnet"] = True
-            with torch.autograd.set_detect_anomaly(True):
-                trainer.run_subnet_generator_one_step(data_i)
-            trainer.run_subnet_discriminator_one_step(data_i)
-            subnet_losses = trainer.get_subnet_latest_losses()
-            subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
-
+        # subnet only
         if opt.train_subnet_only:
             data_i["is_training_subnet"] = True
-            with torch.autograd.set_detect_anomaly(True):
-                trainer.run_subnet_generator_one_step(data_i)
+            trainer.run_subnet_generator_one_step(data_i)
             trainer.run_subnet_discriminator_one_step(data_i)
             subnet_losses = trainer.get_subnet_latest_losses()
             subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
 
         else:
-            if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
-                data_i["is_reconstructing"] = True
+            if opt.train_subnet and i % opt.train_subnet_period == 0:
+                data_i["is_training_subnet"] = True
+                trainer.run_subnet_generator_one_step(data_i)
+                trainer.run_subnet_discriminator_one_step(data_i)
+                subnet_losses = trainer.get_subnet_latest_losses()
+                subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
+
+            # main loop
+            else:
+                if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
+                    data_i["is_reconstructing"] = True
+                    trainer.run_generator_one_step(data_i)
+                    trainer.run_discriminator_one_step(data_i)
+
+                data_i["is_training_subnet"] = False
+                data_i["is_reconstructing"] = False
                 trainer.run_generator_one_step(data_i)
                 trainer.run_discriminator_one_step(data_i)
-
-            data_i["is_training_subnet"] = False
-            data_i["is_reconstructing"] = False
-            trainer.run_generator_one_step(data_i)
-            trainer.run_discriminator_one_step(data_i)
-            losses = trainer.get_latest_losses()
-            losses = {**losses, **trainer.get_latest_discriminator_pred()}
+                losses = trainer.get_latest_losses()
+                losses = {**losses, **trainer.get_latest_discriminator_pred()}
 
         total_losses = {**losses, **subnet_losses}
 
