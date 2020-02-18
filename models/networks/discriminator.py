@@ -128,7 +128,7 @@ class NLayerDiscriminator(BaseNetwork):
             return results[-1]
 
 #source: https://github.com/heykeetae/Self-Attention-GAN/blob/master/sagan_models.py
-class Self_Attn(BaseNetwork):
+class Self_Attn(nn.Module):
     """ Self attention Layer"""
 
     def __init__(self, in_dim):
@@ -163,9 +163,15 @@ class Self_Attn(BaseNetwork):
         out = self.gamma * out + x
         return out, attention
 
-class SAGanDiscriminator(nn.Module):
-    def __init__(self, in_height, in_width, inner_nc=64):
+class SAGanDiscriminator(BaseNetwork):
+    @staticmethod
+    def modify_commandline_options(parser, is_train):
+        return parser
 
+    def __init__(self, opt, for_subnet=True):
+        super().__init__()
+        inner_nc = 64
+        self.opt = opt
         self.norm = nn.BatchNorm2d
 
         self.conv1 = nn.Sequential(
@@ -174,32 +180,45 @@ class SAGanDiscriminator(nn.Module):
         )
 
         self.self_attention = Self_Attn(inner_nc)
-        self.convs = nn.Sequential(
-            nn.Conv2d(inner_nc, inner_nc, stride=2, kernel_size=4, padding=1),
-            spectral_norm(),
-            nn.LeakyReLU(0.2, True),
+        if for_subnet:
+            self.convs = nn.Sequential(
+                spectral_norm(nn.Conv2d(inner_nc, inner_nc, stride=2, kernel_size=4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-            nn.Conv2d(inner_nc, inner_nc*2, stride = 2, kernel_size = 4, padding=1),
-            spectral_norm(),
-            nn.LeakyReLU(0.2, True),
+                spectral_norm(nn.Conv2d(inner_nc, inner_nc*2, stride = 2, kernel_size = 4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-            nn.Conv2d(inner_nc, inner_nc*4, stride = 2, kernel_size = 4, padding=1),
-            spectral_norm(),
-            nn.LeakyReLU(0.2, True),
+                spectral_norm(nn.Conv2d(inner_nc*2, inner_nc*4, stride = 2, kernel_size = 4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-            nn.Conv2d(inner_nc, inner_nc*8, stride = 2, kernel_size = 4, padding=1),
-            spectral_norm(),
-            nn.LeakyReLU(0.2, True),
+                nn.Conv2d(inner_nc*4, 1, kernel_size=3)
+            )
+        else:
+            self.convs = nn.Sequential(
+                spectral_norm(nn.Conv2d(inner_nc, inner_nc, stride=2, kernel_size=4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-            nn.Conv2d(inner_nc, inner_nc*16, stride = 2, kernel_size = 4, padding=1),
-            spectral_norm(),
-            nn.LeakyReLU(0.2, True),
+                spectral_norm(nn.Conv2d(inner_nc, inner_nc * 2, stride=2, kernel_size=4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-            nn.Conv2d(inner_nc*16, 1, kernel_size=3)
-        )
-        in_height = in_height / (2 ** 6) - 2
-        in_width = in_width / (2 ** 6) - 2
+                spectral_norm(nn.Conv2d(inner_nc * 2, inner_nc * 4, stride=2, kernel_size=4, padding=1)),
+                nn.LeakyReLU(0.2, True),
 
-        kernel_size = (in_height, in_width)
+                spectral_norm(nn.Conv2d(inner_nc*4, inner_nc*8, stride = 2, kernel_size = 4, padding=1)),
+                nn.LeakyReLU(0.2, True),
+
+                spectral_norm(nn.Conv2d(inner_nc*8, inner_nc*16, stride = 2, kernel_size = 4, padding=1)),
+                nn.LeakyReLU(0.2, True),
+
+                nn.Conv2d(inner_nc * 16, 1, kernel_size=3)
+            )
+
         # global average pool
-        self.pool = nn.AvgPool2d()
+        self.pool = nn.AdaptiveAvgPool2d(1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        (x,_) = self.self_attention(x)
+        x = self.convs(x)
+        out = self.pool(x)
+        return out
