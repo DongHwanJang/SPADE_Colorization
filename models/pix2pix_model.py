@@ -48,7 +48,7 @@ class Pix2PixModel(torch.nn.Module):
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
-                self.smoothnessLoss = networks.TotalVariationLoss()
+                self.smoothnessLoss = networks.SmoothnessLoss()
             if opt.use_reconstruction_loss:
                 self.reconstructionLoss = networks.ReconstructionLoss()
             if opt.use_contextual_loss:
@@ -283,7 +283,7 @@ class Pix2PixModel(torch.nn.Module):
             fid = self.fid(target_RGB.clone(), util.denormalize(fake_RGB.clone()))
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
+            G_losses["smoothness"] = self.smoothnessLoss(target_LAB, fake_LAB)
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
