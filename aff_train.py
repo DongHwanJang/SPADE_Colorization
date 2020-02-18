@@ -9,7 +9,7 @@ from options.train_options import TrainOptions
 import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
-from trainers.pix2pix_trainer import Pix2PixTrainer
+from trainers.affin_trainer import AffinTrainer
 import os
 import wandb
 import json
@@ -54,35 +54,20 @@ for epoch in iter_counter.training_epochs():
         print("Validation at epoch: " + str(epoch))
         for i, data_i in zip(range(1, len(val_dataloader) + 1), val_dataloader):
             # TODO
-            trainer.val_generator_one_step(data_i)
+            trainer.val_affinnet_one_step(data_i)
 
             # get losses and rename the keys to include "VAL_"
-            losses = trainer.get_latest_losses(get_D_losses=False)
-            for key in losses:
-                new_key = "VAL" + str(epoch) + "_" + key
-                losses[new_key] = losses[key]
-                del losses[key]
-
-            # visualizer.plot_current_errors(losses, i)
+            loss = trainer.get_latest_losses()
 
             if i % opt.val_display_freq == 0:
                 visual_list = [
-                    ('VAL' + str(epoch) + '_conf_map', trainer.get_latest_conf_map()),
                     ('VAL' + str(epoch) + '_attention_map', trainer.get_latest_attention()),
-                    ('VAL' + str(epoch) + '_warped_img_LAB', trainer.get_latest_warped_ref_img()),
-                    ('VAL' + str(epoch) + '_synthesized_image', trainer.get_latest_generated()),
-                    ('VAL' + str(epoch) + '_target_image', data_i['target_image']),
-                    ('VAL' + str(epoch) + '_reference_image', data_i['reference_image']),
-                    ('VAL' + str(epoch) + '_target_L_gray_image', data_i['target_L_gray_image']),
                     ('VAL' + str(epoch) + '_target_LAB', data_i['target_LAB']),
-                    ('VAL' + str(epoch) + '_reference_LAB', data_i['reference_LAB']),
                 ]
 
                 visuals = OrderedDict(visual_list)
 
                 visualizer.display_current_results(visuals, epoch, i)
-                if data_i["get_fid"]:
-                    visualizer.display_value("VAL" + str(epoch) + "_fid", trainer.get_latest_fid(), i)
 
 
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
@@ -93,32 +78,19 @@ for epoch in iter_counter.training_epochs():
         subnet_losses = {}
         affinnet_losses = {}
 
-        ## This part is added for affinityNet training
-        ## TODO
-        trainer.run_affinnet_generator(data_i)
-        affinnet_losses = trainer.get_affinnet_latest_losses()
+        trainer.run_affinnet_one_step(data_i)
 
-        total_losses = {**losses}
+        total_loss = {'loss': trainer.get_latest_losses()}
 
         visualizer.print_current_errors(epoch, iter_counter.epoch_iter,
-                                        total_losses, iter_counter.time_per_iter)
-        visualizer.plot_current_errors(total_losses, iter_counter.total_steps_so_far)
+                                        total_loss, iter_counter.time_per_iter)
+        visualizer.plot_current_errors(total_loss, iter_counter.total_steps_so_far)
 
         if iter_counter.needs_displaying():
-            visual_list = [('input_label', data_i['label'])]
 
-            if not opt.train_subnet_only:
-                visual_list += [
-                               ('conf_map', trainer.get_latest_conf_map()),
-                               ('attention_map', trainer.get_latest_attention()),
-                               ('warped_img_LAB', trainer.get_latest_warped_ref_img()),
-                               ('synthesized_image', trainer.get_latest_generated()),
-                               ('target_image', data_i['target_image']),
-                               ('reference_image', data_i['reference_image']),
-                               ('target_L_gray_image', data_i['target_L_gray_image']),
-                               ('target_LAB', data_i['target_LAB']),
-                               ('reference_LAB', data_i['reference_LAB']),
-                               ]
+            visual_list = [('attention_map', trainer.get_latest_attention()),
+                           ('target_LAB', data_i['target_LAB'])
+                            ]
 
             visuals = OrderedDict(visual_list)
 

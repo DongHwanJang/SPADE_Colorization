@@ -10,6 +10,7 @@ from util.img_loader import lab_deloader
 import torch.nn.functional as F
 from util import img_loader
 from util.fid import FID
+import numpy as np
 
 class AffinModel(torch.nn.Module):
     @staticmethod
@@ -32,8 +33,6 @@ class AffinModel(torch.nn.Module):
 
         # set loss functions
         if opt.isTrain:
-            if opt.use_reconstruction_loss:
-                self.reconstructionLoss = networks.ReconstructionLoss()
             self.criterionSmoothL1 = torch.nn.SmoothL1Loss()
 
     # parses LAB into L and AB.
@@ -58,64 +57,20 @@ class AffinModel(torch.nn.Module):
     # of deep networks. We used this approach since DataParallel module
     # can't parallelize custom functions, we branch to different
     # routines based on |mode|.
-    def forward(self, data, mode, is_training=True):
+    def forward(self, data, is_training=True):
         # main branch
-        if is_training:
+        target_LAB = data["target_LAB"]
+        target_L, _ = self.parse_LAB(target_LAB)
 
-            target_L_gray_image = data["target_L_gray_image"]
-            ref_L_gray_image = data["ref_L_gray_image"]
-            reference_LAB = data["reference_LAB"]
-            target_L, _ = self.parse_LAB(target_LAB)
-            _, reference_AB = self.parse_LAB(reference_LAB)
+        g_loss, out_affin = self.compute_affinnet_loss(
+            target_L, target_LAB)
 
-            if mode == 'subnet_generator':
+        return g_loss, out_affin
 
-                if data["is_subnet_reconstructing"]:
-                    subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
-                    subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
-
-                    subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
-                    _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
-
-                    subnet_ref_AB = reference_AB
-                else:
-                    subnet_target_L = target_L
-                    subnet_target_L_gray_image = target_L_gray_image
-                    subnet_ref_L_gray_image = ref_L_gray_image
-                    subnet_ref_AB = reference_AB
-
-                g_loss, generated, attention, generated_index, fid = \
-                    self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image,
-                                                       subnet_warped_LAB_gt_resized,
-                                                       subnet_ref_L_gray_image, subnet_ref_AB,
-                                                       subnet_warped_RGB_gt_resized,
-                                                       subnet_index_gt_for_loss, get_fid=data["get_fid"],
-                                                       is_subnet_reconstructing=data["is_subnet_reconstructing"])
-
-                return g_loss, generated, attention, generated_index, fid
-
-            else:
-                raise ValueError("|mode| is invalid")
-        # validation
-        else:
-            target_LAB = data["target_LAB"]
-            reference_LAB = data["reference_LAB"]
-            target_RGB = data["target_image"]
-            reference_RGB = data["reference_image"]
-            target_L_gray_image = data["target_L_gray_image"]
-            reference_L_gray_image = data["reference_L_gray_image"]
-
-            target_L, _ = self.parse_LAB(target_LAB)
-            _, reference_AB = self.parse_LAB(reference_LAB)
-            g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
-                target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
-                reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
-
-            return g_loss, generated, attention, conf_map, fid
 
     def create_optimizers(self, opt):
         A_params = list(self.netA.parameters())
-
+        A_lr = opt.lr
         optimizer_A = torch.optim.Adam(A_params, lr=A_lr)
 
         return optimizer_A
@@ -136,199 +91,63 @@ class AffinModel(torch.nn.Module):
 
         return netA
 
-    def compute_generator_loss(self, target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
-                               reference_LAB, reference_RGB, is_reconstructing=False, get_fid=False):
-        G_losses = {}
+    def compute_affinnet_loss(self, target_L, target_LAB):
 
-        # if not using VAE, this is just a forward pass of G
-        fake_AB, _, attention, conf_map = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
+        gt_affin = self._calc_color_affin_batch(target_LAB) # BxNxN
+        out_affin = self.netA(target_L)
+        B, N, N = gt_affin.size()
 
-        fake_LAB = torch.cat([target_L, fake_AB], dim=1)
+        G_loss = self.criterionSmoothL1(
+            out_affin.view(B, -1), gt_affin.view(B, -1))
 
-        if is_reconstructing:
-            G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
-
-        if self.opt.use_contextual_loss:
-            G_losses["contextual"] = self.contextualLoss(fake_LAB, reference_LAB)
-
-        return G_losses, fake_LAB, attention, conf_map, fid
-
-    def subnet_compute_generator_loss(self, subnet_target_L, subnet_target_L_gray_image, subnet_warped_LAB_gt_resized,
-                                      subnet_ref_L_gray_image, subnet_ref_AB, subnet_warped_RGB_gt_resized,
-                                      subnet_index_gt_for_loss, get_fid=False, is_subnet_reconstructing=False):
-
-        G_losses = {}
-
-        subnet_fake_AB_resized, attention, corr_map = self.subnet_generate_fake(subnet_target_L_gray_image,
-                                                                                subnet_ref_AB, subnet_ref_L_gray_image)
-
-        target_L_resized=F.interpolate(subnet_target_L, size=(64, 64), mode='bilinear')
-        subnet_fake_LAB_resized = torch.cat([target_L_resized, subnet_fake_AB_resized], dim=1)
-        subnet_fake_RGB_resized_norm = img_loader.torch_lab2rgb(subnet_fake_LAB_resized, normalize=True)
-
-        if is_subnet_reconstructing:
-            # index_map: B x C(=N_key) | corr_map: B x C(=N_key) x H_query x W_query
-            G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
-            G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
-        G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
-        G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
-
-        # We let discriminator compare fake_LAB and target_LAB.
-        pred_fake, pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_warped_LAB_gt_resized)
-        G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)[0]
-
-        # # calculate feature matching loss with L1 distance
-        # if not self.opt.no_ganFeat_loss:
-        #     num_D = len(pred_fake)
-        #     GAN_Feat_loss = self.FloatTensor(1).fill_(0)
-        #
-        #     for i in range(num_D):  # for each discriminator
-        #         # last output is the final prediction, so we exclude it
-        #         num_intermediate_outputs = len(pred_fake[i]) - 1
-        #         for j in range(num_intermediate_outputs):  # for each layer output
-        #             unweighted_loss = self.criterionFeat(
-        #                 pred_fake[i][j], pred_real[i][j].detach())
-        #             GAN_Feat_loss += unweighted_loss / num_D
-        #     G_losses['subnet_GAN_Feat'] = GAN_Feat_loss[0]
-
-        fid = None
-        if get_fid:
-            fid = self.fid(subnet_warped_LAB_gt_resized, subnet_fake_LAB_resized.clone())
-
-        return G_losses, subnet_fake_LAB_resized, attention, torch.max(corr_map, dim=1)[1].unsqueeze(1), fid
-
-    def run_discriminator(self, target_L, target_L_gray_image, reference_L_gray_image, target_LAB, reference_RGB):
-        with torch.no_grad():
-            fake_AB, _, _, _ = self.generate_fake(target_L_gray_image, reference_RGB, reference_L_gray_image)
-            fake_AB = fake_AB.detach()
-            fake_AB.requires_grad_()
-            fake_LAB = torch.cat([target_L, fake_AB], dim=1)
-        pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
-
-        return pred_fake, pred_real
-
-    def subnet_run_discriminator(self, subnet_target_L, subnet_target_L_gray_image, subnet_ref_L_gray_image,
-                                 subnet_target_LAB, subnet_ref_AB):
-        with torch.no_grad():
-            subnet_fake_AB_resized, _, _ = self.subnet_generate_fake(subnet_target_L_gray_image, subnet_ref_AB,
-                                                                     subnet_ref_L_gray_image)
-            subnet_fake_AB_resized = subnet_fake_AB_resized.detach()
-            subnet_fake_AB_resized.requires_grad_()
-
-            subnet_target_L_resized = F.interpolate(subnet_target_L, size=(64, 64), mode='bicubic')
-            subnet_fake_LAB_resized = torch.cat([subnet_target_L_resized, subnet_fake_AB_resized], dim=1)
-            subnet_target_LAB_resized = F.interpolate(subnet_target_LAB, size=(64, 64), mode='bicubic')
-
-        subnet_pred_fake, subnet_pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_target_LAB_resized)
-        return subnet_pred_fake, subnet_pred_real
-
-    def compute_discriminator_loss(self, pred_fake, pred_real):
-        D_losses = {}
-
-        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
-                                               for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,
-                                               for_discriminator=True)
-
-        return D_losses
-
-    def subnet_compute_discriminator_loss(self, subnet_pred_fake, subnet_pred_real):
-        # FIXME: identical with `compute_discriminator_loss`
-        D_losses = {}
-
-        D_losses['D_Fake'] = self.criterionGAN(subnet_pred_fake, False,
-                                               for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(subnet_pred_real, True,
-                                               for_discriminator=True)
-
-        return D_losses
-
-    def generate_fake(self, target_L_gray_image, reference_RGB, reference_L_gray_image, compute_kld_loss=False):
-        z = None
-        KLD_loss = None
-        # if self.opt.use_vae:
-        #     z, mu, logvar = self.encode_z(real_image)
-        #     if compute_kld_loss:
-        #         KLD_loss = self.KLDLoss(mu, logvar)
-
-        # G forward during training
-        if self.opt.ref_type == 'l':
-            fake_image, attention, conf_map = self.netG(target_L_gray_image, reference_RGB, ref_l=reference_L_gray_image, z=z)
-        else:
-            fake_image, attention, conf_map = self.netG(target_L_gray_image, reference_RGB, z=z)
-
-        assert (not compute_kld_loss) or self.opt.use_vae, \
-            "You cannot compute KLD loss if opt.use_vae == False"
-
-        return fake_image, KLD_loss, attention, conf_map
-
-    def subnet_generate_fake(self, subnet_target_L_gray_image, subnet_ref_AB, subnet_ref_L_gray_image):
-        # G forward during training
-        attention, corr_map = self.netG(subnet_target_L_gray_image, ref_rgb=None, ref_l=subnet_ref_L_gray_image,
-                              subnet_only=True)
-
-        B, H_query, W_query, H_key, W_key = attention.size()  # corr_map: B x N_query x N_key
-        subnet_ref_AB = F.interpolate(subnet_ref_AB, size=(H_key, W_key), mode="bilinear")  # B x 2 x H_key x W_key
-        subnet_ref_AB = subnet_ref_AB.view(B, 2, -1)  # 1 x 2 x N_key
-
-        attention_warp = attention.view(B, H_query, W_query, -1)  # B x H_query x W_query x N_key
-        attention_warp = attention_warp.view(B, -1, H_key * W_key)  # N_query x N_key
-        attention_warp = attention_warp.permute(0, 2, 1)  # N_key x N_query
-
-        warped_AB = torch.bmm(subnet_ref_AB, attention_warp).view(B, 2, H_query, W_query)  # B x 2 x H_query x W_query
-
-        return warped_AB, attention, corr_map
-
-    # Given fake and real image, return the prediction of discriminator
-    # for each fake and real image.
-    # channel-wise concatenates input (of G) and fake, input (of G) and real, then
-    # concatenates the two again channelwise
-    def discriminate(self, fake_LAB, target_LAB):
-        # In Batch Normalization, the fake and real images are
-        # recommended to be in the same batch to avoid disparate
-        # statistics in fake and real images.
-        # So both fake and real images are fed to D all at once.
-        fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
-
-        discriminator_out = self.netD(fake_and_real)
-
-        pred_fake, pred_real = self.divide_pred(discriminator_out)
-        return pred_fake, pred_real
-
-    # Take the prediction of fake and real images from the combined batch
-    # pred is a list of list of feature maps
-    def divide_pred(self, pred):
-        # the prediction contains the intermediate outputs of multiscale GAN,
-        # so it's usually a list
-        if type(pred) == list:
-            fake = []
-            real = []
-
-            # iterate through each discriminator's output
-            for p in pred:
-
-                # iterate through each feature map in the discriminator's output
-                fake.append([tensor[:tensor.size(0) // 2] for tensor in p])
-                real.append([tensor[tensor.size(0) // 2:] for tensor in p])
-        else:
-            fake = pred[:pred.size(0) // 2]
-            real = pred[pred.size(0) // 2:]
-
-        # fake, real are list of list of tensors
-        return fake, real
-
-    def get_edges(self, t):
-        edge = self.ByteTensor(t.size()).zero_()
-        edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])
-        edge[:, :, :, :-1] = edge[:, :, :, :-1] | (t[:, :, :, 1:] != t[:, :, :, :-1])
-        edge[:, :, 1:, :] = edge[:, :, 1:, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
-        edge[:, :, :-1, :] = edge[:, :, :-1, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
-        return edge.float()
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return eps.mul(std) + mu
+        return G_loss, out_affin
 
     def use_gpu(self):
         return len(self.opt.gpu_ids) > 0
+
+    def _calc_color_affin(self, img_lab):
+
+        image_a = img_lab[1, :, :]
+        image_b = img_lab[2, :, :]
+        img_ab = torch.cat([image_a, image_b], 0)
+
+        # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065/4
+        img_ab = torch.nn.functional.interpolate(img_ab, size=(64, 64), mode='bilinear')
+        img_resize = img_ab.view(2, -1)\
+            .permute(1, 0) # 2 x (64*64=4096) -> 4096 x 2
+
+        x = img_resize
+        y = img_resize
+
+        x_norm = (x ** 2).sum(1).view(-1, 1)
+        if y is not None:
+            y_t = torch.transpose(y, 0, 1)
+            y_norm = (y ** 2).sum(1).view(1, -1)
+        else:
+            y_t = torch.transpose(x, 0, 1)
+            y_norm = x_norm.view(1, -1)
+
+        dist = x_norm + y_norm - 2.0 * torch.mm(x, y_t)
+        dist = torch.clamp(dist, 0.0, np.inf)
+        aff_matrix = torch.exp((-1)*dist)
+
+        # img_resize1 = img_resize.unsquueze(1).expand(64 * 64, 64 * 64, 2)
+        # img_resize2 = img_resize.unsquueze(0).expand(64 * 64, 64 * 64, 2)
+        #
+        # aff_matrix = torch.pow(img_resize1-img_resize2, 2).sum(2)
+
+        return aff_matrix
+
+    def _calc_color_affin_batch(self, img_lab):
+        image_a = img_lab[:, 1, :, :]
+        image_b = img_lab[:, 2, :, :]
+        img_ab = torch.cat([image_a, image_b], 1)
+
+        # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065/4
+        img_ab = torch.nn.functional.interpolate(img_ab, size=(64, 64), mode='bilinear')
+        B, C, H, W = img_ab.size()
+        img_resize = img_ab.view(B, C, H*W) \
+            .permute(0, 2, 1)  # BxCxHW -> BxHWxC
+
+        aff_matrix = util.calc_affin_batch(img_resize)
+        return aff_matrix
