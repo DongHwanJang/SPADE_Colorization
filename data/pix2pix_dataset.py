@@ -127,6 +127,32 @@ class Pix2pixDataset(BaseDataset):
 
         return {**input_dict, **subnet_args}
 
+    def _calc_color_affin(self, img_lab):
+
+        image_a = img[1, :, :]
+        image_b = img[2, :, :]
+        img_ab = torch.cat([image_A, image_B], 0)
+
+        ref_resized = storch.nn.functional.interpolate(img_ab, size=(64, 64), mode='bilinear')
+        ref_resized = ref_resized.view(2, -1).permute(1, 0) # 2 x (64*64=4096) -> 4096 x 2
+        aff_matrix = torch.zeros((ref_resized.size()[1], ref_resized.size()[1]))
+
+        ## FIXME this is not optimal. Since it only requires half of full afiinity matrix (since it is symmetric)
+        for i in range(64*64):
+            aff_matrix[i] = torch.norm(ref_resized[i] - ref_resized, dim = 1) # 4096
+            # aff_matrix[i] = torch.mean(torch.abs(ref_resized[i] - ref_resized), dim=1) # 4096
+        aff_matrix = torch.exp((-1) *aff_matrix)
+        aff_matrix.requires_grad_(requires_grad=False)
+
+        return aff_matrix
+
+
+
+
+
+
+
+
     def __len__(self):
         return self.dataset_size
 
