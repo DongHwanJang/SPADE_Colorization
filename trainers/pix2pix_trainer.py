@@ -34,6 +34,16 @@ class Pix2PixTrainer():
         self.conf_map = None
         self.data = None
 
+        # self.subnet_g_losses_lambda = {}
+        # for key, val in vars(opt).items():
+        #     if key.startswith("lambda_subnet"):
+        #         self.subnet_g_losses_lambda[key] = val
+        #
+        # self.g_losses_lambda = {}
+        # for key, val in vars(opt).items():
+        #     if key.startswith("lambda") and not key.startswith("lambda_subnet"):
+        #         self.g_losses_lambda[key] = opt[val]
+
         if opt.isTrain:
             self.optimizer_G, self.optimizer_D, self.optimizer_D_subnet = \
                 self.pix2pix_model_on_one_gpu.create_optimizers(opt)
@@ -44,14 +54,14 @@ class Pix2PixTrainer():
 
         g_losses, generated, attention, conf_map, fid = self.pix2pix_model(data, mode='generator')
 
-        g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
-                         "VGG":self.opt.lambda_vgg,
-                         "smoothness":self.opt.lambda_smooth,
-                         "reconstruction":self.opt.lambda_recon,
-                         "contextual":self.opt.lambda_context,
-                         "KLD": self.opt.lambda_kld,
-                         "GAN": 1
-                         }
+        g_losses_lambda = {"GAN_Feat": self.opt.lambda_feat,
+                           "VGG": self.opt.lambda_vgg,
+                           "smoothness": self.opt.lambda_smooth,
+                           "reconstruction": self.opt.lambda_recon,
+                           "contextual": self.opt.lambda_context,
+                           "KLD": self.opt.lambda_kld,
+                           "GAN": 1
+                           }
 
         g_losses_with_lambda = {}
         for key in g_losses:
@@ -74,7 +84,6 @@ class Pix2PixTrainer():
 
     def val_generator_one_step(self, data):
         with torch.no_grad():
-
             g_losses, generated, attention, conf_map, fid = self.pix2pix_model(data, mode='generator', is_training=False)
 
             g_losses_lambda = {"GAN_Feat":self.opt.lambda_feat,
@@ -133,6 +142,33 @@ class Pix2PixTrainer():
         self.data = data
         self.subnet_fid = fid
 
+    def val_subnet_generator_one_step(self, data):
+        with torch.no_grad():
+            g_losses, generated, attention, generated_index, fid = self.pix2pix_model(data, mode='subnet_generator')
+
+
+        g_losses_lambda = {
+                         "subnet_softmax": self.opt.lambda_subnet_softmax,
+                         "subnet_VGG": self.opt.lambda_subnet_vgg,
+                         "subnet_L1": self.opt.lambda_subnet_l1,
+                         "subnet_smoothness": self.opt.lambda_subnet_smooth,
+                         "subnet_GAN_Feat": self.opt.lambda_subnet_feat,
+                         "subnet_GAN": 1
+                         }
+
+        g_losses_with_lambda = {}
+        for key in g_losses:
+            g_losses_with_lambda[key + "_weighted"] = g_losses[key] * g_losses_lambda[key]
+
+
+        self.subnet_g_losses = g_losses
+        self.subnet_g_losses_with_lambda = g_losses_with_lambda
+        self.subnet_generated = generated.detach().cpu()
+        self.subnet_index = generated_index.detach().cpu()
+        self.attention = attention.detach().cpu()
+        self.data = data
+        self.subnet_fid = fid
+
     def run_discriminator_one_step(self, data):
         self.optimizer_D.zero_grad()
         d_out, d_losses = self.pix2pix_model(data, mode='discriminator')
@@ -140,7 +176,7 @@ class Pix2PixTrainer():
         d_loss.backward()
         self.optimizer_D.step()
         self.d_losses = d_losses
-        self.d_pred = self.d_output_to_pred(d_out)
+        # self.d_pred = self.d_output_to_pred(d_out)
 
     def run_subnet_discriminator_one_step(self, data):
         self.optimizer_D_subnet.zero_grad()
@@ -150,7 +186,7 @@ class Pix2PixTrainer():
         self.optimizer_D_subnet.step()
         self.subnet_d_losses = d_losses
 
-        self.subnet_d_pred = self.d_output_to_pred(d_output)
+        # self.subnet_d_pred = self.d_output_to_pred(d_output)
 
     def d_output_to_pred(self, d_out):
         d_pred_dict = {}
@@ -176,8 +212,14 @@ class Pix2PixTrainer():
         else:
             return {**self.g_losses, **self.g_losses_with_lambda}
 
-    def get_subnet_latest_losses(self):
-        return {**self.subnet_g_losses, **self.subnet_g_losses_with_lambda, **self.subnet_d_losses}
+    def get_subnet_latest_losses(self, get_G_losses = True, get_D_losses=True):
+        losses = {}
+        if get_G_losses:
+            losses = {**self.subnet_g_losses_with_lambda}
+        if get_D_losses:
+            losses = {**losses, **self.subnet_d_losses}
+        return losses
+
 
     def get_latest_generated(self):
         return self.generated

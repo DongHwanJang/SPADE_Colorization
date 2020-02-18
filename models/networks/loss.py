@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.networks.architecture import VGG19BN
-from util.WLSFilter import wls_filter
+from util.wls_filter import find_local_patch
 import util.util as util
 
 
@@ -141,58 +141,35 @@ class KLDLoss(nn.Module):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
 
+# Provided from Bo Zhang
 class SmoothnessLoss(nn.Module):  # This does not nn.Module
     def __init__(self):
         super(SmoothnessLoss, self).__init__()
+        self.mseloss = nn.MSELoss()
 
-    def get_near_by_coords(self, h, w, height, width):
-        coords_candidates = [
-            (h - 1, w - 1),
-            (h - 1, w),
-            (h - 1, w + 1),
-            (h, w - 1),
-            (h, w + 1),
-            (h + 1, w - 1),
-            (h + 1, w),
-            (h + 1, w + 1)
-        ]
+    def forward(self, x_lab, x_lab_predict, patch_size=3, alpha=10, scale_factor=1):
 
-        coords = []
+        l = x_lab[:, 0, :, :].unsqueeze(1)
+        a = x_lab[:, 1, :, :].unsqueeze(1)
+        b = x_lab[:, 2, :, :].unsqueeze(1)
+        a_predict = x_lab_predict[:, 1, :, :].unsqueeze(1)
+        b_predict = x_lab_predict[:, 2, :, :].unsqueeze(1)
+        local_l = find_local_patch(l, patch_size)
+        local_a = find_local_patch(a, patch_size)
+        local_b = find_local_patch(b, patch_size)
+        local_a_predict = find_local_patch(a_predict, patch_size)
+        local_b_predict = find_local_patch(b_predict, patch_size)
 
-        for (y, x) in coords_candidates:
-            if x < 0 or y < 0:
-                continue
-            if x >= width or y >= height:
-                continue
-            coords.append((y, x))
+        local_color_difference = (local_l - l) ** 2 + \
+                                 (local_a - a) ** 2 + (local_b - b) ** 2
+        # so that sum of weights equal to 1
+        correlation = nn.functional.softmax(-1 * local_color_difference / alpha, dim=1)
 
-        return coords
+        weighted_ab = torch.cat((torch.sum(correlation * local_a_predict, dim=1, keepdim=True),
+                                 torch.sum(correlation * local_b_predict, dim=1, keepdim=True)), 1)
 
-    def forward(self, x):
-        height, width = x.shape[2:]
-        error = 0
+        return self.mseloss(x_lab[:, 1:, :, :], weighted_ab)
 
-        for c in range(2):
-            wls_weight = wls_filter(x[c, :, :])
-            for h in range(height):
-                for w in range(width):
-                    coords = self.get_near_by_coords(h, w, height, width)
-                    sum = 0
-                    for (y, x) in coords:
-                        sum += wls_weight[y, x] * x[c, y, x]
-                    diff = x[c, h, w] - sum
-                    error += diff
-
-        return error / (height * width)
-
-# source: https://towardsdatascience.com/pytorch-implementation-of-perceptual-losses-for-real-time-style-transfer-8d608e2e9902
-class TotalVariationLoss(nn.Module):
-    def __init__(self):
-        super(TotalVariationLoss, self).__init__()
-
-    def forward(self, img):
-        return ( torch.sum(torch.abs(img[:, :, :, :-1] - img[:, :, :, 1:])) +
-        torch.sum(torch.abs(img[:, :, :-1, :] - img[:, :, 1:, :])))
 
 class ReconstructionLoss(nn.Module):
     def __init__(self):

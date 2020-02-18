@@ -56,37 +56,57 @@ for epoch in iter_counter.training_epochs():
             data_i["is_training_subnet"] = False
             data_i["is_reconstructing"] = False
 
-            trainer.val_generator_one_step(data_i)
+            if opt.train_subnet_only:
+                data_i["is_training_subnet"] = True
+                data_i["is_subnet_reconstructing"] = False
+                trainer.val_subnet_generator_one_step(data_i)
+                losses = trainer.get_subnet_latest_losses(get_G_losses=True, get_D_losses=False)
 
+            else:
+                trainer.val_generator_one_step(data_i)
+                losses = trainer.get_latest_losses(get_G_losses=True, get_D_losses=False)
 
             # get losses and rename the keys to include "VAL_"
-            losses = trainer.get_latest_losses(get_D_losses=False)
             for key in losses:
                 new_key = "VAL" + str(epoch) + "_" + key
                 losses[new_key] = losses[key]
                 del losses[key]
 
-            # visualizer.plot_current_errors(losses, i)
-
             if i % opt.val_display_freq == 0:
-                visual_list = [
-                    ('VAL' + str(epoch) + '_conf_map', trainer.get_latest_conf_map()),
-                    ('VAL' + str(epoch) + '_attention_map', trainer.get_latest_attention()),
-                    ('VAL' + str(epoch) + '_warped_img_LAB', trainer.get_latest_warped_ref_img()),
-                    ('VAL' + str(epoch) + '_synthesized_image', trainer.get_latest_generated()),
-                    ('VAL' + str(epoch) + '_target_image', data_i['target_image']),
-                    ('VAL' + str(epoch) + '_reference_image', data_i['reference_image']),
-                    ('VAL' + str(epoch) + '_target_L_gray_image', data_i['target_L_gray_image']),
-                    ('VAL' + str(epoch) + '_target_LAB', data_i['target_LAB']),
-                    ('VAL' + str(epoch) + '_reference_LAB', data_i['reference_LAB']),
-                ]
+                append_str = 'VAL' + str(epoch)
+                if opt.train_subnet_only:
+                    append_str += "_subnet"
+                    visual_list = [
+                        (append_str + '_generated_index', trainer.get_subnet_latest_index()),
+                        (append_str + '_synthesized_image', trainer.get_subnet_latest_generated()),
+                        (append_str + '_target_image', data_i['target_image']),
+                        (append_str + '_reference_image', data_i['reference_image']),
+                        (append_str + '_target_L_gray_image', data_i['target_L_gray_image']),
+                        (append_str + '_target_LAB', data_i['target_LAB']),
+                        (append_str + '_reference_LAB', data_i['reference_LAB']),
+                    ]
+                    if data_i["get_fid"]:
+                        visualizer.display_value(append_str + "_fid", trainer.get_subnet_latest_fid(), i)
+
+                else:
+                    visual_list = [
+                        (append_str+ '_conf_map', trainer.get_latest_conf_map()),
+                        (append_str + '_attention_map', trainer.get_latest_attention()),
+                        (append_str + '_warped_img_LAB', trainer.get_latest_warped_ref_img()),
+                        (append_str + '_synthesized_image', trainer.get_latest_generated()),
+                        (append_str + '_target_image', data_i['target_image']),
+                        (append_str + '_reference_image', data_i['reference_image']),
+                        (append_str + '_target_L_gray_image', data_i['target_L_gray_image']),
+                        (append_str + '_target_LAB', data_i['target_LAB']),
+                        (append_str + '_reference_LAB', data_i['reference_LAB']),
+                    ]
+
+                    if data_i["get_fid"]:
+                        visualizer.display_value(append_str + "_fid", trainer.get_latest_fid(), i)
 
                 visuals = OrderedDict(visual_list)
 
                 visualizer.display_current_results(visuals, epoch, i)
-                if data_i["get_fid"]:
-                    visualizer.display_value("VAL" + str(epoch) + "_fid", trainer.get_latest_fid(), i)
-
 
     for i, data_i in enumerate(train_dataloader, start=iter_counter.epoch_iter):
         iter_counter.record_one_iteration()
@@ -97,46 +117,50 @@ for epoch in iter_counter.training_epochs():
         else:
             data_i["get_fid"] = False
 
-        # if i % opt.D_steps_per_G == 0:
         losses = {}
         subnet_losses = {}
 
         # subnet only
         if opt.train_subnet_only:
-
-            # subnet reconstruction loop
-            if opt.subnet_reconstruction_period >= 0 and i % opt.subnet_reconstruction_period == 0:
-                data_i["is_subnet_reconstructing"] = True
-                trainer.run_subnet_generator_one_step(data_i)
-                trainer.run_subnet_discriminator_one_step(data_i)
-
-            data_i["is_training_subnet"] = True
-            trainer.run_subnet_generator_one_step(data_i)
+            get_G_losses = False
+            get_D_losses = True
             trainer.run_subnet_discriminator_one_step(data_i)
-            subnet_losses = trainer.get_subnet_latest_losses()
-            subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
 
+            # run generator
+            if i % opt.D_steps_per_G == 0:
+                get_G_losses = True
 
-        else:
-            if opt.train_subnet and i % opt.train_subnet_period == 0:
+                data_i["is_subnet_reconstructing"] = False
+                subnet_losses = trainer.get_subnet_latest_losses(get_D_losses=True, get_G_losses=True)
+
+                # subnet reconstruction loop
+                if opt.subnet_reconstruction_period >= 0 and i % opt.subnet_reconstruction_period == 0:
+                    data_i["is_subnet_reconstructing"] = True
+                    trainer.run_subnet_generator_one_step(data_i)
+
                 data_i["is_training_subnet"] = True
                 trainer.run_subnet_generator_one_step(data_i)
                 trainer.run_subnet_discriminator_one_step(data_i)
-                subnet_losses = trainer.get_subnet_latest_losses()
-                subnet_losses = {**subnet_losses, **trainer.get_subnet_latest_discriminator_pred()}
+            subnet_losses = trainer.get_subnet_latest_losses(get_D_losses=get_D_losses, get_G_losses=get_G_losses)
 
-            # main loop
-            if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
-                data_i["is_reconstructing"] = True
-                trainer.run_generator_one_step(data_i)
-                trainer.run_discriminator_one_step(data_i)
-
-            data_i["is_training_subnet"] = False
-            data_i["is_reconstructing"] = False
-            trainer.run_generator_one_step(data_i)
-            trainer.run_discriminator_one_step(data_i)
-            losses = trainer.get_latest_losses()
-            losses = {**losses, **trainer.get_latest_discriminator_pred()}
+        # else:
+        #     if opt.train_subnet and i % opt.train_subnet_period == 0:
+        #         data_i["is_training_subnet"] = True
+        #         trainer.run_subnet_generator_one_step(data_i)
+        #         trainer.run_subnet_discriminator_one_step(data_i)
+        #         subnet_losses = trainer.get_subnet_latest_losses()
+        #
+        #     # main loop
+        #     if opt.use_reconstruction_loss and i % opt.reconstruction_period == 0:
+        #         data_i["is_reconstructing"] = True
+        #         trainer.run_generator_one_step(data_i)
+        #         trainer.run_discriminator_one_step(data_i)
+        #
+        #     data_i["is_training_subnet"] = False
+        #     data_i["is_reconstructing"] = False
+        #     trainer.run_generator_one_step(data_i)
+        #     trainer.run_discriminator_one_step(data_i)
+        #     losses = trainer.get_latest_losses()
 
         total_losses = {**losses, **subnet_losses}
 

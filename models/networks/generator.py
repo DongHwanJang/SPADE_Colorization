@@ -12,6 +12,18 @@ from models.networks.architecture import ResnetBlock as ResnetBlock
 from models.networks.architecture import SPADEResnetBlock as SPADEResnetBlock
 from models.networks.architecture import CorrSubnet as CorrSubnet
 
+class SubnetGenerator(BaseNetwork):
+    @staticmethod
+    def modify_commandline_options(parser, is_train):
+        return parser
+
+    def __init__(self, opt):
+        super().__init__()
+        self.opt = opt
+        self.network = CorrSubnet(opt)
+
+    def forward(self, tgt, ref_rgb, ref_l=None, subnet_only=False):
+        return self.network(tgt, ref_rgb, ref_l=ref_l, subnet_only=subnet_only)
 
 class SPADEGenerator(BaseNetwork):
     @staticmethod

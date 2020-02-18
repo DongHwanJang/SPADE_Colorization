@@ -29,8 +29,10 @@ class Pix2PixModel(torch.nn.Module):
 
         if opt.use_wandb and len(opt.gpu_ids) <= 1:
             opt.wandb.watch(self.netG, log="all")
-            opt.wandb.watch(self.netD, log="all")
-            opt.wandb.watch(self.netD_subnet, log="all")
+            if self.netD != None:
+                opt.wandb.watch(self.netD, log="all")
+            if self.netD_subnet != None:
+                opt.wandb.watch(self.netD_subnet, log="all")
 
         if not opt.no_fid:
             self.fid = FID()
@@ -41,14 +43,11 @@ class Pix2PixModel(torch.nn.Module):
                 opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
             self.criterionFeat = torch.nn.L1Loss()
             if not opt.no_vgg_loss:
-                # self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids, vgg=self.netG.corr_subnet.vgg)
-                # set vgg=None because the version for vgg in perceptual loss may be different
-                # with that in using corr_feat
                 self.criterionVGG = networks.VGGLoss(self.opt, self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
             if opt.use_smoothness_loss:
-                self.smoothnessLoss = networks.TotalVariationLoss()
+                self.smoothnessLoss = networks.SmoothnessLoss()
             if opt.use_reconstruction_loss:
                 self.reconstructionLoss = networks.ReconstructionLoss()
             if opt.use_contextual_loss:
@@ -126,28 +125,29 @@ class Pix2PixModel(torch.nn.Module):
                 subnet_ref_LAB = data["subnet_ref_LAB"]
 
                 target_L_gray_image = data["target_L_gray_image"]
-                ref_L_gray_image = data["ref_L_gray_image"]
+                ref_L_gray_image = data["reference_L_gray_image"]
                 reference_LAB = data["reference_LAB"]
+                target_LAB = data["target_LAB"]
                 target_L, _ = self.parse_LAB(target_LAB)
                 _, reference_AB = self.parse_LAB(reference_LAB)
 
                 subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
                 subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
                 subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
-                if mode == 'subnet_generator':
 
-                    if data["is_subnet_reconstructing"]:
+                subnet_target_L = target_L
+                subnet_target_L_gray_image = target_L_gray_image
+                subnet_ref_L_gray_image = ref_L_gray_image
+                subnet_ref_AB = reference_AB
+
+                if mode == 'subnet_generator':
+                    if data["is_subnet_reconstructing"] == True:
                         subnet_target_L_gray_image = data["subnet_target_L_gray_image"]
                         subnet_ref_L_gray_image = data["subnet_ref_L_gray_image"]
 
                         subnet_target_L, _ = self.parse_LAB(subnet_target_LAB)
                         _, subnet_ref_AB = self.parse_LAB(subnet_ref_LAB)
 
-                        subnet_ref_AB = reference_AB
-                    else:
-                        subnet_target_L = target_L
-                        subnet_target_L_gray_image = target_L_gray_image
-                        subnet_ref_L_gray_image = ref_L_gray_image
                         subnet_ref_AB = reference_AB
 
                     g_loss, generated, attention, generated_index, fid = \
@@ -166,22 +166,55 @@ class Pix2PixModel(torch.nn.Module):
 
             else:
                 raise ValueError("|mode| is invalid")
+
         # validation
         else:
-            target_LAB = data["target_LAB"]
-            reference_LAB = data["reference_LAB"]
-            target_RGB = data["target_image"]
-            reference_RGB = data["reference_image"]
-            target_L_gray_image = data["target_L_gray_image"]
-            reference_L_gray_image = data["reference_L_gray_image"]
+            # subnet validation
+            if "subnet" in mode:
+                subnet_target_LAB = data["subnet_target_LAB"]
+                subnet_ref_LAB = data["subnet_ref_LAB"]
 
-            target_L, _ = self.parse_LAB(target_LAB)
-            _, reference_AB = self.parse_LAB(reference_LAB)
-            g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
-                target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
-                reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
+                target_L_gray_image = data["target_L_gray_image"]
+                ref_L_gray_image = data["reference_L_gray_image"]
+                reference_LAB = data["reference_LAB"]
+                target_LAB = data["target_LAB"]
+                target_L, _ = self.parse_LAB(target_LAB)
+                _, reference_AB = self.parse_LAB(reference_LAB)
 
-            return g_loss, generated, attention, conf_map, fid
+                subnet_warped_LAB_gt_resized = data["subnet_warped_LAB_gt_resized"]
+                subnet_warped_RGB_gt_resized = data["subnet_warped_RGB_gt_resized"]
+                subnet_index_gt_for_loss = data["subnet_index_gt_for_loss"]
+                subnet_target_L = target_L
+                subnet_target_L_gray_image = target_L_gray_image
+                subnet_ref_L_gray_image = ref_L_gray_image
+                subnet_ref_AB = reference_AB
+
+                g_loss, generated, attention, generated_index, fid = \
+                    self.subnet_compute_generator_loss(subnet_target_L, subnet_target_L_gray_image,
+                                                       subnet_warped_LAB_gt_resized,
+                                                       subnet_ref_L_gray_image, subnet_ref_AB,
+                                                       subnet_warped_RGB_gt_resized,
+                                                       subnet_index_gt_for_loss, get_fid=data["get_fid"],
+                                                       is_subnet_reconstructing=data["is_subnet_reconstructing"])
+
+                return g_loss, generated, attention, generated_index, fid
+
+            # main loop validation
+            else:
+                target_LAB = data["target_LAB"]
+                reference_LAB = data["reference_LAB"]
+                target_RGB = data["target_image"]
+                reference_RGB = data["reference_image"]
+                target_L_gray_image = data["target_L_gray_image"]
+                reference_L_gray_image = data["reference_L_gray_image"]
+
+                target_L, _ = self.parse_LAB(target_LAB)
+                _, reference_AB = self.parse_LAB(reference_LAB)
+                g_loss, generated, attention, conf_map, fid = self.compute_generator_loss(
+                    target_L, target_L_gray_image, target_LAB, target_RGB, reference_L_gray_image,
+                    reference_LAB, reference_RGB, is_reconstructing=data["is_reconstructing"], get_fid=data["get_fid"])
+
+                return g_loss, generated, attention, conf_map, fid
 
     def create_optimizers(self, opt):
         G_params = list(self.netG.parameters())
@@ -205,7 +238,10 @@ class Pix2PixModel(torch.nn.Module):
 
     def save(self, epoch):
         util.save_network(self.netG, 'G', epoch, self.opt)
-        util.save_network(self.netD, 'D', epoch, self.opt)
+        if self.netD != None:
+            util.save_network(self.netD, 'D', epoch, self.opt)
+        if self.netD_subnet != None:
+            util.save_network(self.netD, 'D_subnet', epoch, self.opt)
         if self.opt.use_vae:
             util.save_network(self.netE, 'E', epoch, self.opt)
 
@@ -222,7 +258,10 @@ class Pix2PixModel(torch.nn.Module):
         if not opt.isTrain or opt.continue_train:
             netG = util.load_network(netG, 'G', opt.which_epoch, opt)
             if opt.isTrain:
-                netD = util.load_network(netD, 'D', opt.which_epoch, opt)
+                netD = None
+                netD_subnet = None
+                if opt.netG != "subnet":
+                    netD = util.load_network(netD, 'D', opt.which_epoch, opt)
                 netD_subnet = util.load_network(netD_subnet, 'D_subnet', opt.which_epoch, opt)
             if opt.use_vae:
                 netE = util.load_network(netE, 'E', opt.which_epoch, opt)
@@ -283,7 +322,7 @@ class Pix2PixModel(torch.nn.Module):
             fid = self.fid(target_RGB.clone(), util.denormalize(fake_RGB.clone()))
 
         if self.opt.use_smoothness_loss:
-            G_losses["smoothness"] = self.smoothnessLoss.forward(fake_LAB[:, 1:, :, :])# put fake_AB
+            G_losses["smoothness"] = self.smoothnessLoss(target_LAB, fake_LAB)
 
         if is_reconstructing:
             G_losses["reconstruction"] = self.reconstructionLoss(fake_LAB, reference_LAB)
@@ -315,8 +354,9 @@ class Pix2PixModel(torch.nn.Module):
 
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_warped_LAB_gt_resized)
-        G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)[0]
-
+        G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)
+        if G_losses['subnet_GAN'].ndim > 0:
+            G_losses['subnet_GAN'] = G_losses['subnet_GAN'][0]
         # # calculate feature matching loss with L1 distance
         # if not self.opt.no_ganFeat_loss:
         #     num_D = len(pred_fake)
