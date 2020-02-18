@@ -86,7 +86,7 @@ class AffinTrainer():
             self.data = data
 
     def get_latest_losses(self):
-        self.g_loss
+        return self.g_loss
 
     ###############################
     # Visualize Affinity
@@ -101,7 +101,6 @@ class AffinTrainer():
 
         # attention => query x key
         points += self.get_grid_points()
-        points += self.get_top_conf_points()
         points += self.get_random_points()
 
         attention_visuals = []
@@ -121,7 +120,7 @@ class AffinTrainer():
         x, y = point
         H = target_L_gray_image.size()[-2]
         W = target_L_gray_image.size()[-1]
-        conf_H = np.sqrt(self.attention.size()[-1]) # sqrt(N)
+        conf_H = self.attention.size()[-1] # sqrt(N)
         assert isinstance(conf_H, int)
         scale = H/conf_H
 
@@ -132,18 +131,18 @@ class AffinTrainer():
         return target_L_gray_image.squeeze(0)
 
     def get_grid_points(self, n_partition = 4):
-        _, H_tgt, W_tgt, _, _ = self.attention.size()
+        _, H, W, _, _ = self.attention.size()
         pts_lt = []
 
         for i in range(1, n_partition):
             for j in range(1, n_partition):
-                pts_lt.append((H_tgt/4*i, W_tgt/4*j))
+                pts_lt.append((H/4*i, W/4*j))
 
         return pts_lt
 
     def get_random_points(self, num_pts=3):
         pts_lt = []
-        H = np.sqrt(self.attention.size()[1])
+        H = self.attention.size()[1]
 
         for i in range(num_pts):
             pts_lt.append((np.random.randint(H), np.random.randint(H)))

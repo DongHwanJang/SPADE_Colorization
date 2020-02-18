@@ -60,10 +60,10 @@ class AffinModel(torch.nn.Module):
     def forward(self, data, is_training=True):
         # main branch
         target_LAB = data["target_LAB"]
-        target_L, _ = self.parse_LAB(target_LAB)
+        target_L_gray_image = data['target_L_gray_image']
 
         g_loss, out_affin = self.compute_affinnet_loss(
-            target_L, target_LAB)
+            target_L_gray_image, target_LAB)
 
         return g_loss, out_affin
 
@@ -91,14 +91,17 @@ class AffinModel(torch.nn.Module):
 
         return netA
 
-    def compute_affinnet_loss(self, target_L, target_LAB):
+    def compute_affinnet_loss(self, target_L_gray_image, target_LAB):
 
         gt_affin = self._calc_color_affin_batch(target_LAB) # BxNxN
-        out_affin = self.netA(target_L)
+        out_affin = self.netA(target_L_gray_image)
         B, N, N = gt_affin.size()
 
         G_loss = self.criterionSmoothL1(
             out_affin.view(B, -1), gt_affin.view(B, -1))
+
+        sqrt_N = int(np.sqrt(N))
+        out_affin = out_affin.view(B, sqrt_N, sqrt_N, sqrt_N, sqrt_N)
 
         return G_loss, out_affin
 
@@ -139,8 +142,8 @@ class AffinModel(torch.nn.Module):
         return aff_matrix
 
     def _calc_color_affin_batch(self, img_lab):
-        image_a = img_lab[:, 1, :, :]
-        image_b = img_lab[:, 2, :, :]
+        image_a = img_lab[:, 1, :, :].unsqueeze(1)
+        image_b = img_lab[:, 2, :, :].unsqueeze(1)
         img_ab = torch.cat([image_a, image_b], 1)
 
         # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065/4

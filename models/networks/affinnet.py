@@ -6,8 +6,9 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch.nn as nn
 from models.networks.architecture import VGGFeatureExtractor
 from util import util
+from models.networks.base_network import BaseNetwork
 
-class AffinNet(nn.Module):
+class AffinNet(BaseNetwork):
     def __init__(self, opt):
         super(AffinNet, self).__init__()
         self.opt = opt
