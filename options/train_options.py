@@ -28,6 +28,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--beta1', type=float, default=0.0, help='momentum term of adam')
         parser.add_argument('--beta2', type=float, default=0.9, help='momentum term of adam')
         parser.add_argument('--no_TTUR', action='store_true', help='Use TTUR training scheme')
+        parser.add_argument("--D_in_channel", type=int, default=3, help="D input channel. 2 or 3")
 
         parser.add_argument("--crop_to_ref", action='store_true')
         parser.add_argument('--crop_to_ref_size', type=int, default=256)

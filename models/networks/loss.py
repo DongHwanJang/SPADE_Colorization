@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from models.networks.architecture import VGG19BN
-from util.wls_filter import find_local_patch
 import util.util as util
 
 
@@ -140,6 +139,16 @@ class KLDLoss(nn.Module):
     def forward(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
+# Provided from Bo Zhang
+import torch.nn.functional as F
+
+def find_local_patch(x, patch_size):
+    # unfold the image
+    N, C, H, W = x.shape
+    x_unfold = F.unfold(x, kernel_size=(patch_size, patch_size), padding=(
+        patch_size // 2, patch_size // 2), stride=(1, 1))
+    out = x_unfold.view(N, x_unfold.shape[1], H, W)
+    return out
 
 # Provided from Bo Zhang
 class SmoothnessLoss(nn.Module):  # This does not nn.Module
@@ -233,7 +242,6 @@ class ContextualLoss(nn.Module):
         cx_loss = torch.mean(-torch.log(cx + 1e-5))
 
         return cx_loss
-
 
 class IndexLoss(nn.Module):
     def __init__(self):

@@ -175,7 +175,7 @@ class SAGanDiscriminator(BaseNetwork):
         self.norm = nn.BatchNorm2d
 
         self.conv1 = nn.Sequential(
-            spectral_norm(nn.Conv2d(3, inner_nc, stride=2, kernel_size=4, padding=1)),
+            spectral_norm(nn.Conv2d(opt.D_in_channel, inner_nc, stride=2, kernel_size=4, padding=1)),
             self.norm(inner_nc)
         )
 

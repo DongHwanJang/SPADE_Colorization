@@ -468,7 +468,13 @@ class Pix2PixModel(torch.nn.Module):
         # recommended to be in the same batch to avoid disparate
         # statistics in fake and real images.
         # So both fake and real images are fed to D all at once.
-        fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
+
+        if self.opt.D_in_channel == 3:
+            fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
+        if self.opt.D_in_channel == 2:
+            fake_and_real = torch.cat([fake_LAB[:, 1:, :, :], target_LAB[:, 1:, :, :]], dim=0)
+        else:
+            raise ValueError("--D_in_channel should be 2 or 3")
 
         discriminator_out = self.netD(fake_and_real)
 

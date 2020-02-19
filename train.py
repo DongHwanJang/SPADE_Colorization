@@ -4,16 +4,19 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 
 import sys
+
+import os
+import wandb
+import json
+import torch
+import pathlib
+sys.path.insert(0, pathlib.Path(__file__).parent.absolute())
 from collections import OrderedDict
 from options.train_options import TrainOptions
 import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer
-import os
-import wandb
-import json
-import torch
 
 # parse options
 opt = TrainOptions().parse()
