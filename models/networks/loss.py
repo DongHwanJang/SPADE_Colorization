@@ -244,3 +244,7 @@ class IndexLoss(nn.Module):
         # index_map: B x H_key x W_key, corr_map: B x C(=N_query) x H_key x W_key
         index_loss = self.loss(corr_map, index_map)
         return index_loss
+
+class DistributionLoss(nn.Module):
+    def forward(self, real, fake):
+        return torch.abs(real.mean() - fake.mean())+ torch.abs(real.std() - fake.std())

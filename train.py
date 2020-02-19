@@ -129,9 +129,7 @@ for epoch in iter_counter.training_epochs():
             # run generator
             if i % opt.D_steps_per_G == 0:
                 get_G_losses = True
-
                 data_i["is_subnet_reconstructing"] = False
-                subnet_losses = trainer.get_subnet_latest_losses(get_D_losses=True, get_G_losses=True)
 
                 # subnet reconstruction loop
                 if opt.subnet_reconstruction_period >= 0 and i % opt.subnet_reconstruction_period == 0:
