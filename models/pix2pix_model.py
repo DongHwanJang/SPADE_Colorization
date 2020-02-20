@@ -39,8 +39,11 @@ class Pix2PixModel(torch.nn.Module):
 
         # set loss functions
         if opt.isTrain:
-            self.criterionGAN = networks.GANLoss(
-                opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
+            if opt.gan_mode == "rals":
+                self.criterionGAN = networks.RaLSGANLoss(opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
+            else:
+                self.criterionGAN = networks.GANLoss(
+                    opt.gan_mode, tensor=self.FloatTensor, opt=self.opt)
             self.criterionFeat = torch.nn.L1Loss()
             if not opt.no_vgg_loss:
                 self.criterionVGG = networks.VGGLoss(self.opt, self.opt.gpu_ids)
@@ -295,7 +298,11 @@ class Pix2PixModel(torch.nn.Module):
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(fake_LAB, target_LAB)
 
-        G_losses['GAN'] = self.criterionGAN(pred_fake, True,
+        if self.opt.gan_mode == "rals":
+            G_losses['GAN'] = self.criterionGAN(pred_real, pred_fake, True,
+                                                for_discriminator=False)
+        else:
+            G_losses['GAN'] = self.criterionGAN(pred_fake, True,
                                             for_discriminator=False)
 
         # calculate feature matching loss with L1 distance
@@ -350,11 +357,16 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['subnet_softmax'] = self.criterionSoftmax(corr_map, subnet_index_gt_for_loss)
             G_losses['subnet_L1'] = self.criterionSmoothL1(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
         G_losses['subnet_VGG'] = self.criterionVGG(subnet_fake_RGB_resized_norm, subnet_warped_RGB_gt_resized)
-        G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_fake_RGB_resized_norm[:, 1:, :, :])
+        G_losses["subnet_smoothness"] = self.smoothnessLoss.forward(subnet_warped_RGB_gt_resized, subnet_fake_LAB_resized)
 
         # We let discriminator compare fake_LAB and target_LAB.
         pred_fake, pred_real = self.discriminate(subnet_fake_LAB_resized, subnet_warped_LAB_gt_resized)
-        G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)
+
+        if self.opt.gan_mode == "rals":
+            G_losses["subnet_GAN"] = self.criterionGAN(pred_real, pred_fake, True, for_discriminator=False)
+        else:
+            G_losses['subnet_GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)
+
         if G_losses['subnet_GAN'].ndim > 0:
             G_losses['subnet_GAN'] = G_losses['subnet_GAN'][0]
         # # calculate feature matching loss with L1 distance
@@ -405,10 +417,17 @@ class Pix2PixModel(torch.nn.Module):
     def compute_discriminator_loss(self, pred_fake, pred_real):
         D_losses = {}
 
-        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
-                                               for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,
-                                               for_discriminator=True)
+        if self.opt.gan_mode == "rals":
+            D_losses['D_Fake'] = self.criterionGAN(pred_real, pred_fake, False,
+                                                   for_discriminator=True)
+            D_losses['D_real'] = self.criterionGAN(pred_real, pred_fake, True,
+                                                   for_discriminator=True)
+
+        else:
+            D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
+                                                   for_discriminator=True)
+            D_losses['D_real'] = self.criterionGAN(pred_real, True,
+                                                   for_discriminator=True)
 
         return D_losses
 
@@ -416,10 +435,17 @@ class Pix2PixModel(torch.nn.Module):
         # FIXME: identical with `compute_discriminator_loss`
         D_losses = {}
 
-        D_losses['D_Fake'] = self.criterionGAN(subnet_pred_fake, False,
-                                               for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(subnet_pred_real, True,
-                                               for_discriminator=True)
+        if self.opt.gan_mode == "rals":
+            D_losses['D_Fake'] = self.criterionGAN(subnet_pred_real, subnet_pred_fake, False,
+                                                   for_discriminator=True)
+            D_losses['D_real'] = self.criterionGAN(subnet_pred_real, subnet_pred_fake, True,
+                                                   for_discriminator=True)
+
+        else:
+            D_losses['D_Fake'] = self.criterionGAN(subnet_pred_fake, False,
+                                                   for_discriminator=True)
+            D_losses['D_real'] = self.criterionGAN(subnet_pred_real, True,
+                                                   for_discriminator=True)
 
         return D_losses
 
@@ -471,7 +497,7 @@ class Pix2PixModel(torch.nn.Module):
 
         if self.opt.D_in_channel == 3:
             fake_and_real = torch.cat([fake_LAB, target_LAB], dim=0)
-        if self.opt.D_in_channel == 2:
+        elif self.opt.D_in_channel == 2:
             fake_and_real = torch.cat([fake_LAB[:, 1:, :, :], target_LAB[:, 1:, :, :]], dim=0)
         else:
             raise ValueError("--D_in_channel should be 2 or 3")

@@ -110,6 +110,60 @@ class GANLoss(nn.Module):
         else:
             return self.loss(input, target_is_real, for_discriminator)
 
+class RaLSGANLoss(nn.Module):
+    def __init__(self, gan_mode, target_real_label=1.0, target_fake_label=0.0,
+                 tensor=torch.FloatTensor, opt=None):
+        super(RaLSGANLoss, self).__init__()
+        assert gan_mode == "rals"
+        self.opt = opt
+        self.real_label = target_real_label
+        self.real_label_tensor = None
+        self.Tensor = tensor
+
+    def get_target_tensor(self, input, target_is_real):
+        if self.real_label_tensor is None:
+            self.real_label_tensor = self.Tensor(1).fill_(self.real_label)
+            self.real_label_tensor.requires_grad_(False)
+        return self.real_label_tensor.expand_as(input)
+
+    def forward(self, y_pred, y_pred_fake, target_is_real, for_discriminator=True):
+        target_tensor = self.get_target_tensor(y_pred, True)
+        if for_discriminator:
+            if target_is_real:
+                # source: https://github.com/AlexiaJM/RelativisticGAN/blob/master/code/GAN_losses_iter.py#L639
+                return torch.mean((y_pred - torch.mean(y_pred_fake) - target_tensor) ** 2)
+            else:
+                return torch.mean((y_pred_fake - torch.mean(y_pred) + target_tensor) ** 2)
+        else:
+            # source: https://github.com/AlexiaJM/RelativisticGAN/blob/master/code/GAN_losses_iter.py#L705
+
+            return (torch.mean((y_pred - torch.mean(y_pred_fake) + target_tensor) ** 2) + torch.mean(
+                (y_pred_fake - torch.mean(y_pred) - target_tensor) ** 2)) / 2
+
+    # def __call__(self, pred_real, pred_fake, target_is_real, for_discriminator=True):
+    #     # computing loss is a bit complicated because |input| may not be
+    #     # a tensor, but list of tensors in case of multiscale discriminator
+    #     if isinstance(pred_real, list):
+    #
+    #         loss = 0
+    #         # iterate through each discriminator's output
+    #         for i in range(len(pred_real)):
+    #             pred_fake_i = pred_fake[i]
+    #             pred_real_i = pred_real[i]
+    #             # take the last feature map only, since that is the final output of the discriminator
+    #             if isinstance(pred_fake_i, list):
+    #                 pred_fake_i = pred_fake_i[-1]
+    #                 pred_real_i = pred_real_i[-1]
+    #
+    #             loss_tensor = self.loss(pred_real_i, pred_fake_i, target_is_real, for_discriminator)
+    #             bs = 1 if len(loss_tensor.size()) == 0 else loss_tensor.size(0)
+    #             new_loss = torch.mean(loss_tensor.view(bs, -1), dim=1)
+    #
+    #             loss += new_loss
+    #
+    #         return loss / len(input)
+    #     else:
+    #         return self.loss(input, target_is_real, for_discriminator)
 
 # Perceptual loss that uses a pretrained VGG network
 class VGGLoss(nn.Module):
