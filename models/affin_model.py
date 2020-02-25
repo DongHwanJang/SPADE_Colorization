@@ -33,7 +33,7 @@ class AffinModel(torch.nn.Module):
 
         # set loss functions
         if opt.isTrain:
-            self.criterionSmoothL1 = torch.nn.SmoothL1Loss()
+            self.criterionBCE = torch.nn.BCELoss()
 
     # parses LAB into L and AB.
     # This shouldn't make new copies. It should also handle batch cases
@@ -97,8 +97,10 @@ class AffinModel(torch.nn.Module):
         out_affin = self.netA(target_L_gray_image)
         B, N, N = gt_affin.size()
 
-        G_loss = self.criterionSmoothL1(
-            out_affin.view(B, -1), gt_affin.view(B, -1))
+        tmp_loss = torch.abs(gt_affin-out_affin)
+        # G_loss = self.criterionBCE(
+        #     torch.ones_like(tmp_loss), tmp_loss)
+        G_loss = torch.log(tmp_loss).mean()
 
         sqrt_N = int(np.sqrt(N))
         out_affin = out_affin.view(B, sqrt_N, sqrt_N, sqrt_N, sqrt_N)
@@ -141,12 +143,17 @@ class AffinModel(torch.nn.Module):
 
         return aff_matrix
 
+    # https://discuss.pytorch.org/t/batched-pairwise-distance/39611
     def _calc_color_affin_batch(self, img_lab):
+        """
+        Calculate color GT affinity using util.calc_affin_batch
+        :param img_lab:
+        :return:
+        """
         image_a = img_lab[:, 1, :, :].unsqueeze(1)
         image_b = img_lab[:, 2, :, :].unsqueeze(1)
         img_ab = torch.cat([image_a, image_b], 1)
 
-        # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065/4
         img_ab = torch.nn.functional.interpolate(img_ab, size=(64, 64), mode='bilinear')
         B, C, H, W = img_ab.size()
         img_resize = img_ab.view(B, C, H*W) \

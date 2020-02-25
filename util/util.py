@@ -354,7 +354,18 @@ def find_pretrained_weight(weight_root, opt=None):
 
     return weight_name
 
+# https://discuss.pytorch.org/t/batched-pairwise-distance/39611
 def calc_affin_batch(input):
+    """
+
+    :param input: BxNxC
+    :return:
+    """
+    # B, N, C = input.size()
+    #
+    # x = input.unsqueeze(2).expand(B, N, N, C)
+    # y = input.unsqueeze(1).expand(B, N, N, C)
+    # dist = torch.mean(torch.abs(x - y), dim=3) # BxNxN
     x = input
     y = input
     x_norm = (x ** 2).sum(2).view(x.shape[0], x.shape[1], 1)
@@ -363,7 +374,7 @@ def calc_affin_batch(input):
     dist = x_norm + y_norm - 2.0 * torch.bmm(x, y_t)
     assert torch.isnan(dist).sum() == 0
 
-    dist[dist != dist] = 0  # replace nan values with 0
+    # dist[dist != dist] = 0  # replace nan values with 0
     dist = torch.clamp(dist, 0.0, np.inf)
 
     aff_matrix = torch.exp((-1) * dist)
