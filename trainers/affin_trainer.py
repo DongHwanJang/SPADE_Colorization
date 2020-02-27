@@ -103,6 +103,7 @@ class AffinTrainer():
         points += self.get_grid_points()
         points += self.get_random_points()
 
+
         attention_visuals = []
 
         for point in points:
