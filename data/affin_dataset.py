@@ -25,6 +25,6 @@ class AffinDataset(Pix2pixDataset):
         return parser
 
     def get_paths(self, opt):
-        make_dataset(opt.dataroot)
+        images = make_dataset(opt.dataroot)
 
-        return pair_data
+        return images
