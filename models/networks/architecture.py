@@ -225,7 +225,7 @@ class VGGFeatureExtractor(nn.Module):
         # create vgg Model
         self.opt = opt
         checkpoint_dir = "models/networks/checkpoint.pth.tar"
-        self.vgg_l_as_rgb = VGG19BN_L(checkpoint_dir).cuda()
+        self.vgg_l_as_rgb = VGG19BN_L(checkpoint_dir, requires_grad=self.opt.unfreeze_vgg).cuda()
         self.vgg_lab_as_rgb = VGG19BN().cuda()
 
         # create conv layers
@@ -234,30 +234,44 @@ class VGGFeatureExtractor(nn.Module):
         self.conv_3_2_0 = nn.Conv2d(256, 128, kernel_size=3, padding=1)
         self.conv_3_2_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         self.conv_4_2_0 = nn.Conv2d(512, 256, kernel_size=3, padding=1)
-        self.conv_4_2_1 = nn.ConvTranspose2d(256, 256,
-                                             kernel_size=3, stride=2,
-                                             padding=1, output_padding=1)
-        self.conv_5_2_0 = nn.ConvTranspose2d(512, 256,
-                                             kernel_size=3, stride=2,
-                                             padding=1, output_padding=1)
-        self.conv_5_2_1 = nn.ConvTranspose2d(256, 256,
-                                             kernel_size=3, stride=2,
-                                             padding=1, output_padding=1)
 
         self.conv_2_2_0_lab = nn.Conv2d(128, 128, kernel_size=3, padding=1)
         self.conv_2_2_1_lab = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
         self.conv_3_2_0_lab = nn.Conv2d(256, 128, kernel_size=3, padding=1)
         self.conv_3_2_1_lab = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         self.conv_4_2_0_lab = nn.Conv2d(512, 256, kernel_size=3, padding=1)
-        self.conv_4_2_1_lab = nn.ConvTranspose2d(256, 256,
+
+        if self.opt.use_upsample:
+            self.conv_4_2_1 = nn.Upsample(scale_factor=2, mode='bilinear')
+            # To make the smae number of channel with no_upsample case.
+            self.conv_5_2_0 = nn.Sequential(nn.Conv2d(512, 256, kernel_size=1),
+                                             nn.Upsample(scale_factor=2, mode='bilinear'))
+            self.conv_5_2_1 = nn.Upsample(scale_factor=2, mode='bilinear')
+
+            self.conv_4_2_1_lab = nn.Upsample(scale_factor=2, mode='bilinear')
+            self.conv_5_2_0_lab = nn.Sequential(nn.Conv2d(512, 256, kernel_size=1),
+                                             nn.Upsample(scale_factor=2, mode='bilinear'))
+            self.conv_5_2_1_lab = nn.Upsample(scale_factor=2, mode='bilinear')
+        else:
+            self.conv_4_2_1 = nn.ConvTranspose2d(256, 256,
                                                  kernel_size=3, stride=2,
                                                  padding=1, output_padding=1)
-        self.conv_5_2_0_lab = nn.ConvTranspose2d(512, 256,
+            self.conv_5_2_0 = nn.ConvTranspose2d(512, 256,
                                                  kernel_size=3, stride=2,
                                                  padding=1, output_padding=1)
-        self.conv_5_2_1_lab = nn.ConvTranspose2d(256, 256,
+            self.conv_5_2_1 = nn.ConvTranspose2d(256, 256,
                                                  kernel_size=3, stride=2,
                                                  padding=1, output_padding=1)
+
+            self.conv_4_2_1_lab = nn.ConvTranspose2d(256, 256,
+                                                     kernel_size=3, stride=2,
+                                                     padding=1, output_padding=1)
+            self.conv_5_2_0_lab = nn.ConvTranspose2d(512, 256,
+                                                     kernel_size=3, stride=2,
+                                                     padding=1, output_padding=1)
+            self.conv_5_2_1_lab = nn.ConvTranspose2d(256, 256,
+                                                     kernel_size=3, stride=2,
+                                                     padding=1, output_padding=1)
 
         # apply spectral norm if specified
         if 'spectral' in opt.norm_G:
@@ -266,33 +280,36 @@ class VGGFeatureExtractor(nn.Module):
             self.conv_3_2_0 = spectral_norm(self.conv_3_2_0)
             self.conv_3_2_1 = spectral_norm(self.conv_3_2_1)
             self.conv_4_2_0 = spectral_norm(self.conv_4_2_0)
-            self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
-            self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
-            self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
 
             self.conv_2_2_0_lab = spectral_norm(self.conv_2_2_0_lab)
             self.conv_2_2_1_lab = spectral_norm(self.conv_2_2_1_lab)
             self.conv_3_2_0_lab = spectral_norm(self.conv_3_2_0_lab)
             self.conv_3_2_1_lab = spectral_norm(self.conv_3_2_1_lab)
             self.conv_4_2_0_lab = spectral_norm(self.conv_4_2_0_lab)
-            self.conv_4_2_1_lab = spectral_norm(self.conv_4_2_1_lab)
-            self.conv_5_2_0_lab = spectral_norm(self.conv_5_2_0_lab)
-            self.conv_5_2_1_lab = spectral_norm(self.conv_5_2_1_lab)
+            if not self.opt.use_upsample:
+                self.conv_4_2_1 = spectral_norm(self.conv_4_2_1)
+                self.conv_5_2_0 = spectral_norm(self.conv_5_2_0)
+                self.conv_5_2_1 = spectral_norm(self.conv_5_2_1)
+
+                self.conv_4_2_1_lab = spectral_norm(self.conv_4_2_1_lab)
+                self.conv_5_2_0_lab = spectral_norm(self.conv_5_2_0_lab)
+                self.conv_5_2_1_lab = spectral_norm(self.conv_5_2_1_lab)
 
         self.conv_concate = nn.Conv2d(256*4, 256, kernel_size=1)
         self.conv_concate_lab = nn.Conv2d(256 * 4, 256, kernel_size=1)
 
-        self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
+        if not self.opt.no_resblk:
+            self.resblock_0 = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_1 = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_2 = ResnetBlock(256, nn.InstanceNorm2d(256))
 
-        self.resblock_0_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_1_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_2_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_0_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_1_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_2_ref = ResnetBlock(256, nn.InstanceNorm2d(256))
 
-        self.resblock_0_val = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_1_val = ResnetBlock(256, nn.InstanceNorm2d(256))
-        self.resblock_2_val = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_0_val = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_1_val = ResnetBlock(256, nn.InstanceNorm2d(256))
+            self.resblock_2_val = ResnetBlock(256, nn.InstanceNorm2d(256))
 
 
     def forward(self, x, input_type, l_with_ab=False):
@@ -317,20 +334,21 @@ class VGGFeatureExtractor(nn.Module):
             x = torch.cat(vgg_feature, dim=1)
             x = self.conv_concate(x)
 
-        if input_type == 'target' or (input_type == 'reference' and not l_with_ab):
-            x = self.resblock_0(x)
-            x = self.resblock_1(x)
-            x = self.resblock_2(x)  # [B, 256, H/4, W/4]
+        if not self.opt.no_resblk:
+            if input_type == 'target' or (input_type == 'reference' and not l_with_ab):
+                x = self.resblock_0(x)
+                x = self.resblock_1(x)
+                x = self.resblock_2(x)  # [B, 256, H/4, W/4]
 
-        elif input_type == 'reference':
-            x = self.resblock_0_ref(x)
-            x = self.resblock_1_ref(x)
-            x = self.resblock_2_ref(x)  # [B, 256, H/4, W/4]
+            elif input_type == 'reference':
+                x = self.resblock_0_ref(x)
+                x = self.resblock_1_ref(x)
+                x = self.resblock_2_ref(x)  # [B, 256, H/4, W/4]
 
-        elif input_type == 'value':
-            x = self.resblock_0_val(x)
-            x = self.resblock_1_val(x)
-            x = self.resblock_2_val(x)  # [B, 256, H/4, W/4]
+            elif input_type == 'value':
+                x = self.resblock_0_val(x)
+                x = self.resblock_1_val(x)
+                x = self.resblock_2_val(x)  # [B, 256, H/4, W/4]
 
         return x
 

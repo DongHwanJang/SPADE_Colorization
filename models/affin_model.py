@@ -31,7 +31,7 @@ class AffinModel(torch.nn.Module):
         if opt.use_wandb and len(opt.gpu_ids) <= 1:
             opt.wandb.watch(self.netA, log="all")
 
-        # set loss functions
+        # set loss functions0.
         if opt.isTrain:
             self.criterionBCE = torch.nn.BCELoss()
 
@@ -93,17 +93,16 @@ class AffinModel(torch.nn.Module):
 
     def compute_affinnet_loss(self, target_L_gray_image, target_LAB):
 
-        gt_affin = self._calc_color_affin_batch(target_LAB) # BxNxN
+        gt_affin = self._calc_color_affin_batch(target_LAB) # BxMxN
         out_affin = self.netA(target_L_gray_image)
-        B, N, N = gt_affin.size()
+        B, M, N = gt_affin.size()
 
-        tmp_loss = torch.abs(gt_affin-out_affin)
-        # G_loss = self.criterionBCE(
-        #     torch.ones_like(tmp_loss), tmp_loss)
-        G_loss = torch.log(tmp_loss).mean()
+        # - log(1 - |gt - out|)
+        tmp_loss = 1 - torch.abs(gt_affin-out_affin)
+        G_loss = (-1) * torch.log(tmp_loss+1e-5).mean()
 
         sqrt_N = int(np.sqrt(N))
-        out_affin = out_affin.view(B, sqrt_N, sqrt_N, sqrt_N, sqrt_N)
+        # out_affin = out_affin.view(B, sqrt_N, sqrt_N, sqrt_N, sqrt_N)
 
         return G_loss, out_affin
 
@@ -159,5 +158,9 @@ class AffinModel(torch.nn.Module):
         img_resize = img_ab.view(B, C, H*W) \
             .permute(0, 2, 1)  # BxCxHW -> BxHWxC
 
-        aff_matrix = util.calc_affin_batch(img_resize)
+        if self.opt.no_radius:
+            aff_matrix = util.calc_affin_batch(img_resize)
+        else:
+            aff_matrix = util.calc_affin_batch_new(img_ab)
+
         return aff_matrix

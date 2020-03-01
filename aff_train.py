@@ -88,7 +88,8 @@ for epoch in iter_counter.training_epochs():
 
         if iter_counter.needs_displaying():
 
-            visual_list = [('attention_map', trainer.get_latest_attention()),
+            ## TODO visualize trained attention
+            visual_list = [#('attention_map', trainer.get_latest_attention()),
                            ('target_LAB', data_i['target_LAB'])
                             ]
 

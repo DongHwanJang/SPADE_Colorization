@@ -72,6 +72,13 @@ class BaseOptions():
         parser.add_argument('--nef', type=int, default=16, help='# of encoder filters in the first conv layer')
         parser.add_argument('--use_vae', action='store_true', help='enable training with an image encoder.')
 
+        # for feature extractor
+        parser.add_argument('--use_upsample', action='store_true', help='enable training with an image encoder.')
+        parser.add_argument('--no_resblk', action='store_true', help='Do NOT use res00000000blk in feature extractor')
+        parser.add_argument('--unfreeze_vgg', action='store_true', help='Unfreeze VGG and make gradients flow to pertrained VGG layers')
+
+        parser.add_argument('--no_radius', action='store_true', help='Calculate affinity with infinite radius.')
+
         self.initialized = True
         return parser
 
